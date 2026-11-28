@@ -19,3 +19,5 @@ export const SDK_HOST = `http://localhost:${port(4202)}`;
 export const HOST_OFFLINE = `http://localhost:${port(4204)}`;
 /** A host with `[host.flags] partial_sync` (PSYNC-02/03, spec zh). */
 export const HOST_PSYNC = `http://localhost:${port(4205)}`;
+/** A host with `[host.flags] links` and its search (LINK-01..05, spec zl). */
+export const HOST_LINKS = `http://localhost:${port(4206)}`;

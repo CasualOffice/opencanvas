@@ -55,6 +55,34 @@ migrations or configuration changes.
 - Timeline (DB5-01): drag a task to another person's row in Workload to reassign it; Weeks and
   Months grouping on phones; the frame 6b "Jump to" panel when the visible range is empty;
   Timeline and Workload variants in the insert menu (`/timeline`, `/gantt`, `/workload`).
+- Links between canvases (LINK-01..03, ADR-081; off until a host sets `[host.flags] links`): a
+  `canvasLink` node links a canvas, a block or a row; the server keeps a link index of ids only
+  (`link_edges`, migration 0014, SQLite, MySQL and MariaDB), written only after the host
+  acknowledged a save. `GET /api/v1/files/{fileId}/backlinks` and the MCP tool
+  `canvas_backlinks` list the canvases that link to one, with the sentence around each link,
+  checked with the host's new optional `POST /access/batch` (else `POST /access` per file):
+  canvases the reader cannot open are left out and not counted. Backfill with
+  `POST /api/v1/links/index`, drop a deleted file's links with `DELETE /api/v1/links/files/{id}`.
+  Exports write canvas links as links to `[host.links] url_template`. Both API clients have the
+  new operations. Redis-only storage refuses `links = true`.
+- The link graph (GRAPH-01, ADR-082): `GET /api/v1/graph` and the MCP tool `canvas_graph` answer
+  the canvases around one canvas (depth 1-3) or the most-connected canvases, with every canvas
+  checked with the host before it is shown or expanded, so a canvas the reader cannot open never
+  connects two others. 30 s cache per person, 10 a minute (2 full).
+- Links in the editor (LINK-01/04/05, to the approved prototype; with `[host.flags] links`): type
+  `[[` to link a canvas from the host's search and your recent canvases, `#` to link one of its
+  headings, databases or rows, or paste one of the host's URLs. Links show the canvas's current
+  title, and "No access", a struck-through deleted canvas or a missing block when that is so.
+  Resting on a link (or Space on a selected one) previews it. Every canvas ends with "Linked
+  from": the canvases that link here, grouped, with the sentence around each link, filters by
+  kind and block, and only canvases you can open; headings with backlinks get a "Linked from"
+  chip that opens the side panel on that heading. "Unlinked mentions" lists canvases that name
+  this one without a link, with Link (as you, in that canvas) and Undo. All of it loads on its
+  own after the canvas (initial JS +0.6 KB for the node).
+- "Linked from" in the top bar's More options menu, and a Comments / Linked from tab row in the
+  side panel. A canvas's `meta.aliases` (other names) is included in `search.json` and in the
+  search for unlinked mentions. Editors older than 0.5 can no longer delete canvas links: their
+  update is refused and they are asked to reopen the canvas.
 
 ### Fixed
 

@@ -320,6 +320,11 @@ pub struct AccessDetail {
     /// LIVE-03 (prototype 5e): the host answered 410, or `{"role": "none", "gone": true}`: the
     /// file was deleted or moved.
     pub gone: bool,
+    /// LINK-03 (optional): when the file was last saved, RFC 3339, and by whom (a name).
+    pub updated_at: Option<String>,
+    pub updated_by: Option<String>,
+    /// GRAPH-01 (optional): the space the file is in; else the first segment of `path`.
+    pub space: Option<String>,
 }
 
 impl Default for HostClient {
@@ -1064,6 +1069,135 @@ impl HostClient {
         }
         let v: serde_json::Value =
             serde_json::from_slice(&bytes).map_err(|e| HostError::Body(e.to_string()))?;
+        parse_access(&v).map(Some)
+    }
+
+    /// `POST {callback_base}/access/batch {userId, fileIds}` (LINK-03, ADR-081): the person's
+    /// role on many files in one call, answered `{items: [{fileId, role, name?, path?, gone?}]}`
+    /// (a file the answer leaves out is `none`). Up to [`ACCESS_BATCH`] files per call; cached
+    /// answers are reused and fresh ones cached, as [`HostClient::access_detail`]. `Ok(None)`
+    /// when the host does not implement it (404, 405, 501): the caller falls back to `/access`.
+    pub async fn access_batch(
+        &self,
+        host: &HostConfig,
+        user_id: &str,
+        file_ids: &[String],
+    ) -> Result<Option<HashMap<String, Option<AccessDetail>>>, HostError> {
+        let mut out = HashMap::new();
+        let mut ask = vec![];
+        if let Ok(m) = self.access_cache.lock() {
+            for f in file_ids {
+                let key = (host.id.clone(), f.clone(), user_id.to_string());
+                match m.get(&key).filter(|(at, _)| at.elapsed() < ACCESS_TTL) {
+                    Some((_, a)) => {
+                        out.insert(f.clone(), a.clone());
+                    }
+                    None => ask.push(f.clone()),
+                }
+            }
+        }
+        ask.sort();
+        ask.dedup();
+        // Chunks go out together: 500 files cost one round trip, not three (LINK-A4).
+        let chunks: Vec<&[String]> = ask.chunks(ACCESS_BATCH).collect();
+        let answers = futures::future::join_all(chunks.iter().map(|chunk| async move {
+            let started = std::time::Instant::now();
+            let r = self.access_batch_once(host, user_id, chunk).await;
+            let result = r.as_ref().map_or_else(err_class, |_| "ok");
+            self.record(host, "access_batch", result, started);
+            r
+        }))
+        .await;
+        for (chunk, r) in chunks.into_iter().zip(answers) {
+            let Some(got) = r? else {
+                return Ok(None);
+            };
+            if let Ok(mut m) = self.access_cache.lock() {
+                if m.len() > 50_000 {
+                    m.retain(|_, (at, _)| at.elapsed() < ACCESS_TTL);
+                }
+                for f in chunk {
+                    let a = Some(got.get(f).cloned().unwrap_or_default());
+                    m.insert(
+                        (host.id.clone(), f.clone(), user_id.to_string()),
+                        (std::time::Instant::now(), a.clone()),
+                    );
+                    out.insert(f.clone(), a);
+                }
+            }
+        }
+        Ok(Some(out))
+    }
+
+    async fn access_batch_once(
+        &self,
+        host: &HostConfig,
+        user_id: &str,
+        file_ids: &[String],
+    ) -> Result<Option<HashMap<String, AccessDetail>>, HostError> {
+        let url = Self::url(host, &["access", "batch"])?;
+        let body = serde_json::to_vec(&serde_json::json!({"userId": user_id, "fileIds": file_ids}))
+            .map_err(|e| HostError::Body(e.to_string()))?;
+        let t = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64;
+        let sig = signature_header(host.signing_secret(), t, "POST", url.path(), &body);
+        let res = self
+            .http
+            .post(url)
+            .timeout(Duration::from_secs(8))
+            .header("X-OpenCanvas-Signature", sig)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body)
+            .send()
+            .await?;
+        let status = res.status();
+        if matches!(
+            status,
+            StatusCode::NOT_FOUND | StatusCode::METHOD_NOT_ALLOWED | StatusCode::NOT_IMPLEMENTED
+        ) {
+            return Ok(None);
+        }
+        if !status.is_success() {
+            return Err(HostError::Status(status));
+        }
+        let bytes = res.bytes().await?;
+        if bytes.len() > 4 * 1024 * 1024 {
+            return Err(HostError::Body("access batch answer too large".into()));
+        }
+        let v: serde_json::Value =
+            serde_json::from_slice(&bytes).map_err(|e| HostError::Body(e.to_string()))?;
+        let mut out = HashMap::new();
+        for item in v["items"].as_array().into_iter().flatten() {
+            let Some(f) = item["fileId"].as_str() else {
+                continue;
+            };
+            // Only files that were asked about; a bad item counts as `none`.
+            if !file_ids.iter().any(|x| x == f) {
+                continue;
+            }
+            let d = if item["gone"].as_bool() == Some(true) && item["role"].is_null() {
+                AccessDetail {
+                    gone: true,
+                    ..Default::default()
+                }
+            } else {
+                parse_access(item).unwrap_or_default()
+            };
+            out.insert(f.to_string(), d);
+        }
+        Ok(Some(out))
+    }
+}
+
+/// Files per `POST /access/batch` call.
+pub const ACCESS_BATCH: usize = 200;
+
+/// One `/access` answer (or one batch item), checked. Nothing of a file the person cannot open
+/// is kept.
+fn parse_access(v: &serde_json::Value) -> Result<AccessDetail, HostError> {
+    {
         let role = match v["role"].as_str() {
             Some("none") => None,
             Some(r) => Some(
@@ -1078,7 +1212,7 @@ impl HostClient {
                 .filter(|s| !s.is_empty() && s.len() <= max)
                 .map(String::from)
         };
-        Ok(Some(AccessDetail {
+        Ok(AccessDetail {
             // Nothing of a file the person cannot open is kept (docs/27 §2.5).
             name: role.and(text("name", 512)),
             callback_token: role.and(text("callbackToken", 4096)),
@@ -1095,10 +1229,15 @@ impl HostClient {
                     .map(String::from),
             ),
             gone: role.is_none() && v["gone"].as_bool() == Some(true),
+            updated_at: role.and(text("updatedAt", 40)),
+            updated_by: role.and(text("updatedBy", 200)),
+            space: role.and(text("space", 200)),
             role,
-        }))
+        })
     }
+}
 
+impl HostClient {
     /// `POST {callback_base}/files` (LIVE-01, docs/05 §5): asks the host to create the backing
     /// file of a new live block, `{name, parentFileId, kind: "ocanvas"}`, with the bearer of
     /// the person making it and an `Idempotency-Key`. The host picks the folder and ACL (by

@@ -278,6 +278,10 @@ pub struct Metrics {
     /// Webhook attempts by `(host, result)` and their time by `host` (WH-01).
     pub webhook_deliveries: CounterVec,
     pub webhook_seconds: HistogramVec,
+    /// LINK-02: link index writes by result, their time, and edges dropped past the cap.
+    pub link_index_writes: CounterVec,
+    pub link_index_seconds: Histogram,
+    pub link_edges_dropped_total: AtomicI64,
 }
 
 impl Metrics {
@@ -306,6 +310,15 @@ impl Metrics {
             .inc(labels(&[("format", format), ("result", result)]));
     }
 
+    /// One link index write after an acknowledged save (LINK-02).
+    pub fn link_index(&self, ok: bool, dropped: usize, took: Duration) {
+        self.link_index_seconds.observe(took);
+        let result = if ok { "ok" } else { "error" };
+        self.link_index_writes.inc(labels(&[("result", result)]));
+        self.link_edges_dropped_total
+            .fetch_add(dropped as i64, Ordering::Relaxed);
+    }
+
     pub fn launch_rejected(&self, code: &str) {
         Self::inc(&self.launches_rejected_total);
         self.launches_rejected.inc(labels(&[("code", code)]));
@@ -329,7 +342,7 @@ impl Metrics {
     }
 
     pub fn render(&self) -> String {
-        let rows: [(&str, &str, &AtomicI64); 13] = [
+        let rows: [(&str, &str, &AtomicI64); 14] = [
             ("oc_wal_batches_total", "counter", &self.wal_batches_total),
             ("oc_wal_rows_total", "counter", &self.wal_rows_total),
             ("oc_rooms_active", "gauge", &self.rooms_active),
@@ -362,6 +375,11 @@ impl Metrics {
                 "oc_upgrades_refused_total",
                 "counter",
                 &self.upgrades_refused_total,
+            ),
+            (
+                "oc_link_edges_dropped_total",
+                "counter",
+                &self.link_edges_dropped_total,
             ),
         ];
         let mut out: String = rows
@@ -397,6 +415,10 @@ impl Metrics {
                 .ai_run_seconds
                 .render("oc_ai_run_seconds", "Wall-clock time of one agent run."),
         );
+        out.push_str(&self.link_index_seconds.render(
+            "oc_link_index_seconds",
+            "Time to replace one file's rows in the link index.",
+        ));
         out.push_str(&self.wal_append_seconds.render(
             "oc_wal_append_seconds",
             "Time to append one batch of updates to the room WAL.",
@@ -424,6 +446,11 @@ impl Metrics {
         self.exports.render(
             "oc_exports_total",
             "Exports by format and result (ok, error).",
+            &mut out,
+        );
+        self.link_index_writes.render(
+            "oc_link_index_writes_total",
+            "Link index writes after acknowledged saves, by result (ok, error).",
             &mut out,
         );
         self.http_responses.render(

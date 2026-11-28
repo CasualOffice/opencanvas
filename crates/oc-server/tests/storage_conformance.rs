@@ -988,3 +988,98 @@ async fn automation_schedule_and_runs() {
         );
     }
 }
+
+/// LINK-02 (ADR-081): `link_edges` on every database backend: a save replaces the file's rows
+/// in one go (2,000 edges, long file ids), reads by target come back newest save first, a
+/// deleted source's rows go, and Redis-only storage refuses. LINK-A1: replacing 2,000 edges
+/// stays under 50 ms p95 (the time of each backend is printed; local M4 for the release note).
+#[tokio::test]
+async fn link_index_contract() {
+    use oc_model::links::{Edge, Kind};
+    for (b, store) in backends().await {
+        let src = format!("src_{}", "s".repeat(900));
+        let target = uid("t");
+        let edges: Vec<Edge> = (0..oc_model::links::MAX_EDGES)
+            .map(|i| Edge {
+                src_block: format!("b{i}"),
+                dst_file: if i % 2 == 0 {
+                    target.clone()
+                } else {
+                    format!("other_{i}")
+                },
+                dst_block: if i % 4 == 0 {
+                    "h1".into()
+                } else {
+                    String::new()
+                },
+                dst_row: String::new(),
+                kind: Kind::Link,
+            })
+            .collect();
+        if b == "redis" {
+            assert!(!store.links_supported());
+            let err = store
+                .links_replace("sample", &src, &edges, 1)
+                .await
+                .unwrap_err();
+            assert!(err.to_string().contains("needs a database"), "{err}");
+            continue;
+        }
+        let mut times = vec![];
+        for round in 0..20 {
+            let t = std::time::Instant::now();
+            store
+                .links_replace("sample", &src, &edges, 10 + round)
+                .await
+                .unwrap();
+            times.push(t.elapsed());
+        }
+        times.sort();
+        let p95 = times[times.len() * 95 / 100 - 1];
+        eprintln!("{b}: replacing 2,000 link edges p95 {p95:?}");
+        assert_eq!(
+            store.links_from("sample", &src).await.unwrap().len(),
+            edges.len(),
+            "{b}"
+        );
+        let to = store.links_to("sample", &target).await.unwrap();
+        assert_eq!(to.len(), 1000, "{b}");
+        assert!(
+            to.iter().all(|r| r.src_file == src && r.saved_at == 29),
+            "{b}"
+        );
+        // A second source, saved later, comes first.
+        store
+            .links_replace(
+                "sample",
+                "src_2",
+                &[Edge {
+                    src_block: String::new(),
+                    dst_file: target.clone(),
+                    dst_block: String::new(),
+                    dst_row: "row_1".into(),
+                    kind: Kind::Relation,
+                }],
+                99,
+            )
+            .await
+            .unwrap();
+        let to = store.links_to("sample", &target).await.unwrap();
+        assert_eq!(to[0].src_file, "src_2", "{b}");
+        assert_eq!(to[0].kind, Kind::Relation);
+        assert_eq!(to[0].dst_row, "row_1");
+        // Another host's rows are its own.
+        assert!(store.links_to("other", &target).await.unwrap().is_empty());
+        assert_eq!(
+            store.links_delete_src("sample", &src).await.unwrap(),
+            edges.len() as u64
+        );
+        assert_eq!(store.links_to("sample", &target).await.unwrap().len(), 1);
+        // An empty save leaves no rows.
+        store
+            .links_replace("sample", "src_2", &[], 100)
+            .await
+            .unwrap();
+        assert!(store.links_to("sample", &target).await.unwrap().is_empty());
+    }
+}

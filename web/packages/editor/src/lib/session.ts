@@ -74,6 +74,8 @@ export interface Session {
   templates?: { team?: boolean } | null;
   /** SRCH-04 (ADR-065): "Search all canvases" only when the host answers `GET /search`. */
   search?: { enabled?: boolean } | null;
+  /** LINK-04 (ADR-081): `[[`, Linked from and previews; unlinked mentions when the host has search. */
+  links?: { enabled?: boolean; mentions?: boolean; urlPatterns?: string[] } | null;
   /** AUTO-06 (ADR-067): the automation panel; `canEdit` = edit access and perms.automate. */
   automation?: { enabled?: boolean; canEdit?: boolean; history?: boolean; limits?: import("../automation/model").Limits } | null;
   /** BSDK-01: the SDK block packages this host enables (docs/15 §2). */
@@ -331,7 +333,8 @@ export function connectCollab(s: Session, opts: { doc?: Y.Doc; connect?: boolean
     // `caps=live`: it keeps `liveBlock` and `blockRef` too (LIVE-02, an editor older than 0.3).
     // `caps=subdoc`: it loads databases and boards as subdocuments (PSYNC-03, docs/15 §3.2); a
     // split room closes editors without it with 4426.
-    params: { ticket: s.ticket, caps: "ext,live,subdoc" },
+    // `caps=links`: it keeps `canvasLink` (LINK-01; an editor older than 0.5 deletes them).
+    params: { ticket: s.ticket, caps: "ext,live,subdoc,links" },
     maxBackoffTime: 10000,
     connect: opts.connect !== false,
     shouldReconnect: (e: CloseEvent) => {

@@ -79,6 +79,8 @@ export interface TopBarProps {
   onFind?: () => void;
   /** SRCH-04: "Search all canvases ⌘⇧F"; absent (hidden, not disabled) without the host's callback (frame 2e). */
   onSearchAll?: () => void;
+  /** LINK-04 (2b, 4a): "Linked from" in the side panel (a sheet on phones); absent without links. */
+  onLinkedFrom?: () => void;
   /** AUTO-06: "Automations" with the number of rules; absent without `[host.automation]`. */
   onAutomations?: () => void;
   /** AUTO-06 frame 5d: a host without automation shows a quiet line when the canvas has rules. */

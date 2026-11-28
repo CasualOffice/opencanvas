@@ -131,6 +131,12 @@ pub fn validate_json_with(v: &Value, reg: &crate::ext::Registry) -> Report {
                 cx.r.err(&format!("/meta/{k}"), format!("meta.{k} must be a string"));
             }
         }
+        // LINK-05: `aliases`, a list of names; extra or long ones are ignored, not refused.
+        if meta.get("aliases").is_some_and(|a| {
+            !a.is_null() && !a.as_array().is_some_and(|l| l.iter().all(Value::is_string))
+        }) {
+            cx.r.warn("/meta/aliases", "meta.aliases must be a list of strings");
+        }
     }
     let dbs = obj.get("databases").and_then(Value::as_object);
     let boards = obj.get("boards").and_then(Value::as_object);
@@ -379,6 +385,19 @@ fn spec(ty: &str) -> Option<Spec> {
             false,
         ),
         "dateMention" => s(Inline, &[("date", A::Date)], C::None, false),
+        // LINK-01 (ADR-081): a link to another canvas, or a block or row in it. The target
+        // block is `targetBlockId` (`blockId` is a node's own id, ADR-023).
+        "canvasLink" => s(
+            Inline,
+            &[
+                ("fileId", A::Id),
+                ("targetBlockId", A::Str),
+                ("rowId", A::Str),
+                ("label", A::Str),
+            ],
+            C::None,
+            false,
+        ),
         // BSDK-02: every SDK block (docs/15 §4.2); `crate::ext::check` checks its attributes.
         "extBlock" => s(
             Block,

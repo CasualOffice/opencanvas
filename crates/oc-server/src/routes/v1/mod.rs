@@ -19,6 +19,7 @@ pub mod cursor;
 pub mod events;
 pub mod idempotency;
 pub mod limits;
+pub mod links;
 pub mod ops;
 pub mod problem;
 pub mod search;
@@ -126,6 +127,14 @@ pub fn table() -> Table {
             p!("/automations/{ruleId}/enable"),
             automation::api_enable,
         )
+        .op(M::GET, p!("/backlinks"), links::backlinks)
+        .op(
+            M::DELETE,
+            "/api/v1/links/files/{fileId}",
+            links::delete_file,
+        )
+        .op(M::POST, "/api/v1/links/index", links::index_files)
+        .op(M::GET, "/api/v1/graph", links::graph)
         .op(M::POST, "/api/v1/extract", search::extract)
         .op(M::GET, "/api/v1/search", search::search)
         .op(M::POST, "/api/v1/offline/revoke", offline_revoke)

@@ -1,0 +1,1135 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 CasualOffice
+
+//! Links and backlinks (LINK-01..03, ADR-081, docs/38 §2): the index follows only saves the
+//! host acknowledged (LINK-A1), holds no text (LINK-A3), and every read goes through the
+//! host's ACL so a source the reader cannot open is absent from the API, the editor route, MCP
+//! and the counts (LINK-A2); exports write host URLs (LINK-A5).
+mod common;
+
+use common::*;
+use oc_server::grant::Role;
+use serde_json::{Value, json};
+
+const PUBLIC: &str = "https://oc.example";
+const KEY: &str = "links-key";
+const TARGET: &str = "doc_target";
+
+fn on(h: &mut oc_server::hosts::HostConfig) {
+    h.api_key = Some(KEY.into());
+    h.flags.insert("api_v1".into(), toml::Value::Boolean(true));
+    h.flags.insert("links".into(), toml::Value::Boolean(true));
+    h.api
+        .insert("audience".into(), toml::Value::String(PUBLIC.into()));
+    h.api
+        .insert("rate_per_sec".into(), toml::Value::Integer(100_000));
+    h.api.insert("burst".into(), toml::Value::Integer(100_000));
+    h.ai.insert("mcp".into(), toml::Value::Boolean(true));
+    h.ai.insert("mcp_audience".into(), toml::Value::String(PUBLIC.into()));
+    h.links = toml::toml! {
+        url_patterns = ["https://docs.acme.test/f/{fileId}#{blockId}", "https://docs.acme.test/f/{fileId}"]
+        url_template = "https://docs.acme.test/f/{fileId}#{blockId}"
+    };
+}
+
+fn now() -> i64 {
+    oc_server::util::now_secs()
+}
+
+fn sign(c: &Value) -> String {
+    jsonwebtoken::encode(
+        &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::HS256),
+        c,
+        &jsonwebtoken::EncodingKey::from_secret(SECRET.as_bytes()).unwrap(),
+    )
+    .unwrap()
+}
+
+fn api_token(sub: &str) -> String {
+    sign(
+        &json!({"iss": "sample", "aud": format!("{PUBLIC}/api/v1"), "sub": sub, "name": "Asha",
+        "exp": now() + 600, "scope": "canvas:read", "role": "view"}),
+    )
+}
+
+fn mcp_token(sub: &str) -> String {
+    sign(
+        &json!({"iss": "sample", "aud": format!("{PUBLIC}/mcp/sample"), "sub": sub,
+        "name": "Asha", "exp": now() + 600, "scope": "canvas:read", "role": "view",
+        "client_id": "t"}),
+    )
+}
+
+async fn serve(
+    tweak: impl FnOnce(&mut oc_server::hosts::HostConfig),
+) -> (String, oc_server::SharedState, Shared, std::path::PathBuf) {
+    let (base, host) = mock_host().await;
+    let db = temp_db();
+    let state = app_ai(&base, room_cfg(), &db, tweak).await;
+    (serve_state(state.clone()).await, state, host, db)
+}
+
+fn http() -> reqwest::Client {
+    reqwest::Client::new()
+}
+
+async fn host_key(
+    addr: &str,
+    method: reqwest::Method,
+    path: &str,
+    body: Option<Value>,
+) -> (u16, Value) {
+    let mut r = http()
+        .request(method, format!("http://{addr}{path}"))
+        .header("x-opencanvas-host", "sample")
+        .header("x-opencanvas-key", KEY);
+    if let Some(b) = body {
+        r = r.json(&b);
+    }
+    let res = r.send().await.unwrap();
+    let s = res.status().as_u16();
+    (s, res.json().await.unwrap_or(Value::Null))
+}
+
+async fn get_json(url: String, bearer: &str) -> (u16, Value) {
+    let res = http().get(url).bearer_auth(bearer).send().await.unwrap();
+    let s = res.status().as_u16();
+    (s, res.json().await.unwrap_or(Value::Null))
+}
+
+/// A `.ocanvas` of `doc`, as the host stores it.
+fn ocanvas(doc: &Value) -> Vec<u8> {
+    let d = oc_model::new_doc();
+    oc_model::import::apply_document_json(&d, doc);
+    oc_model::write_ocanvas(&d, &oc_model::CommitInfo::default()).unwrap()
+}
+
+fn link(file: &str, block: &str, label: &str) -> Value {
+    json!({"type": "canvasLink", "attrs": {"fileId": file, "targetBlockId": block, "label": label}})
+}
+
+/// A source canvas: a heading, then a paragraph that links to the target.
+fn source(section: &str, before: &str, block: &str) -> Value {
+    json!({"content": [
+        {"type": "heading", "attrs": {"level": 2, "blockId": "h_s"}, "content": [{"type": "text", "text": section}]},
+        {"type": "paragraph", "attrs": {"blockId": "p_s"}, "content": [
+            {"type": "text", "text": before},
+            link(TARGET, block, "MARKER-OLD-LABEL"),
+            {"type": "text", "text": "."},
+        ]},
+    ]})
+}
+
+async fn poll<F, Fut>(mut f: F)
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = bool>,
+{
+    for _ in 0..500 {
+        if f().await {
+            return;
+        }
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    panic!("condition not reached");
+}
+
+/// LINK-A1 and LINK-A3: a save the host refused leaves the index alone; the acknowledged save
+/// replaces the file's rows; the rows hold ids and kinds only.
+#[tokio::test]
+async fn the_index_follows_acknowledged_saves_only_and_holds_no_text() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        let doc = json!({"meta": {"title": "MARKER-TITLE"}, "content": [
+            {"type": "paragraph", "attrs": {"blockId": "p1"}, "content": [
+                {"type": "text", "text": "MARKER-TEXT see "},
+                link(TARGET, "h2", "MARKER-LABEL"),
+                {"type": "text", "text": " and ", "marks": []},
+                {"type": "text", "text": "MARKER-URL", "marks": [{"type": "link", "attrs": {"href": "https://docs.acme.test/f/doc_other"}}]},
+            ]},
+        ]});
+        h.files.insert(FILE.into(), (ocanvas(&doc), 1));
+        h.fail = true;
+    }
+    let mut a = Peer::join(&st, grant("u_a", Role::Edit)).await;
+    let (s, v) = host_key(
+        &addr,
+        reqwest::Method::POST,
+        &format!("/api/v1/files/{FILE}/blocks:batch"),
+        Some(json!({"mode": "direct", "ops": [{"op": "append", "markdown": "MARKER-MORE"}]})),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    // The save goes out and the host refuses it.
+    let commit = tokio::spawn({
+        let addr = addr.clone();
+        async move {
+            host_key(
+                &addr,
+                reqwest::Method::POST,
+                &format!("/api/v1/files/{FILE}/commit"),
+                None,
+            )
+            .await
+        }
+    });
+    wait_until(|| !host.lock().unwrap().puts.is_empty()).await;
+    assert!(
+        st.store
+            .links_from("sample", FILE)
+            .await
+            .unwrap()
+            .is_empty(),
+        "no rows before the host acknowledged a save"
+    );
+    commit.abort();
+    host.lock().unwrap().fail = false;
+    let (s, v) = host_key(
+        &addr,
+        reqwest::Method::POST,
+        &format!("/api/v1/files/{FILE}/commit"),
+        None,
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    a.settle().await;
+    poll(|| {
+        let st = st.clone();
+        async move {
+            !st.store
+                .links_from("sample", FILE)
+                .await
+                .unwrap()
+                .is_empty()
+        }
+    })
+    .await;
+    let rows = st.store.links_from("sample", FILE).await.unwrap();
+    let got: Vec<(&str, &str, &str, &str)> = rows
+        .iter()
+        .map(|r| {
+            (
+                r.src_block.as_str(),
+                r.dst_file.as_str(),
+                r.dst_block.as_str(),
+                r.kind.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            ("p1", TARGET, "h2", "link"),
+            ("p1", "doc_other", "", "link")
+        ]
+    );
+    // LINK-A3: no string of the fixture is at rest.
+    for s in st.store.links_dump().await.unwrap() {
+        assert!(!s.contains("MARKER"), "text in link_edges: {s}");
+    }
+}
+
+/// LINK-A2: a source the reader cannot open (`none`, 410, or a failing answer) is absent from
+/// the API, MCP, the editor route and every count; the batch callback and its per-file
+/// fallback answer the same; a deleted source's rows go.
+#[tokio::test]
+async fn backlinks_leave_out_what_the_reader_cannot_open() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        for (k, v) in [
+            (TARGET, "view"),
+            ("src_ok", "view"),
+            ("src_none", "none"),
+            ("src_gone", "gone"),
+        ] {
+            h.access_files.insert((k.into(), "u_1".into()), v.into());
+        }
+        h.access_paths
+            .insert("src_ok".into(), "Engineering / Identity".into());
+        h.access_paths
+            .insert("src_none".into(), "Secret space".into());
+        h.files.insert(
+            "src_ok".into(),
+            (
+                ocanvas(&source("Identity", "Scope and dates live in ", "h2")),
+                1,
+            ),
+        );
+        h.files.insert(
+            "src_none".into(),
+            (ocanvas(&source("Hidden", "HIDDEN-EXCERPT ", "h3")), 1),
+        );
+    }
+    let edge = |block: &str| oc_model::links::Edge {
+        src_block: "p_s".into(),
+        dst_file: TARGET.into(),
+        dst_block: block.into(),
+        dst_row: String::new(),
+        kind: oc_model::links::Kind::Link,
+    };
+    st.store
+        .links_replace("sample", "src_ok", &[edge("h2")], 3)
+        .await
+        .unwrap();
+    st.store
+        .links_replace("sample", "src_none", &[edge("h3")], 2)
+        .await
+        .unwrap();
+    st.store
+        .links_replace("sample", "src_gone", &[edge("h3")], 1)
+        .await
+        .unwrap();
+
+    let url = format!("http://{addr}/api/v1/files/{TARGET}/backlinks");
+    let (s, api) = get_json(url.clone(), &api_token("u_1")).await;
+    assert_eq!(s, 200, "{api}");
+    assert_eq!(api["total"], 1, "{api}");
+    let items = api["items"].as_array().unwrap();
+    assert_eq!(items.len(), 1, "{api}");
+    assert_eq!(items[0]["fileId"], "src_ok");
+    assert_eq!(items[0]["title"], "Name of src_ok");
+    assert_eq!(items[0]["path"], "Engineering / Identity");
+    let r = &items[0]["refs"][0];
+    assert_eq!(r["toBlock"], "h2");
+    assert_eq!(r["section"], "Identity");
+    assert_eq!(
+        r["excerpt"],
+        json!({"before": "Scope and dates live in ", "link": "Name of doc_target", "after": "."})
+    );
+    // Counts per block only of readable sources: h3 is linked only from hidden ones.
+    assert_eq!(api["blocks"], json!({"h2": 1}), "{api}");
+    let text = api.to_string();
+    for hidden in ["src_none", "src_gone", "Secret space", "HIDDEN-EXCERPT"] {
+        assert!(!text.contains(hidden), "{hidden} leaked: {text}");
+    }
+    {
+        let h = host.lock().unwrap();
+        let (user, files, sig) = h.access_batch_calls.last().unwrap();
+        assert!(sig, "the batch callback is signed (v2)");
+        assert_eq!(user, "u_1");
+        assert!(files.contains(&"src_none".to_string()));
+    }
+    // The deleted source loses its rows.
+    poll(|| {
+        let st = st.clone();
+        async move {
+            st.store
+                .links_from("sample", "src_gone")
+                .await
+                .unwrap()
+                .is_empty()
+        }
+    })
+    .await;
+
+    // Filtered to a block the reader sees nothing of: empty, and still no count.
+    let (s, v) = get_json(format!("{url}?block=h3"), &api_token("u_1")).await;
+    assert_eq!(s, 200);
+    assert_eq!(v["items"], json!([]));
+    assert_eq!(v["total"], 0);
+
+    // MCP answers the same (ADR-041 parity).
+    let res = http()
+        .post(format!("http://{addr}/mcp/sample"))
+        .bearer_auth(mcp_token("u_1"))
+        .json(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "canvas_backlinks", "arguments": {"fileId": TARGET}}}))
+        .send()
+        .await
+        .unwrap();
+    let mcp: Value = res.json().await.unwrap();
+    assert_eq!(mcp["result"]["structuredContent"], api, "{mcp}");
+
+    // The editor route, as the session's person.
+    let t = ulid::Ulid::new().to_string();
+    let mut g = grant("u_1", Role::View);
+    g.file.id = TARGET.into();
+    g.file.name = "SSO rollout plan".into();
+    g.room = oc_server::grant::room_id("sample", TARGET);
+    st.store
+        .insert_session(&t, &g, now() + 600, 0)
+        .await
+        .unwrap();
+    let res = http()
+        .get(format!("http://{addr}/v1/backlinks?ticket={t}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let ed: Value = res.json().await.unwrap();
+    assert_eq!(ed["total"], 1, "{ed}");
+    assert_eq!(ed["items"][0]["fileId"], "src_ok");
+    assert_eq!(
+        ed["items"][0]["refs"][0]["excerpt"]["link"],
+        "SSO rollout plan"
+    );
+
+    // Without the batch callback: per-file `/access`, the same answer.
+    host.lock().unwrap().access_batch_off = true;
+    let (_, v) = get_json(url.clone(), &api_token("u_1")).await;
+    assert_eq!(v["items"], api["items"], "{v}");
+    assert_eq!(v["total"], 1);
+
+    // Someone else, whom the host refuses on every source: nothing at all.
+    host.lock()
+        .unwrap()
+        .access_files
+        .insert((TARGET.into(), "u_2".into()), "view".into());
+    let (s, v) = get_json(url.clone(), &api_token("u_2")).await;
+    assert_eq!(s, 200);
+    assert_eq!(v["items"], json!([]));
+    assert_eq!(v["total"], 0);
+    assert_eq!(v["blocks"], json!({}));
+
+    // No view on the target: no answer.
+    let (s, v) = get_json(url.clone(), &api_token("u_3")).await;
+    assert_eq!(s, 403, "{v}");
+    // A host key cannot read as everyone.
+    let (s, v) = host_key(
+        &addr,
+        reqwest::Method::GET,
+        &format!("/api/v1/files/{TARGET}/backlinks"),
+        None,
+    )
+    .await;
+    assert_eq!(s, 400);
+    assert_eq!(v["code"], "USER_TOKEN_REQUIRED");
+}
+
+/// A failing access check shows nothing (fail closed), it never shows everything.
+#[tokio::test]
+async fn a_failing_access_batch_shows_nothing() {
+    let (addr, st, host, _db) = serve(on).await;
+    host.lock()
+        .unwrap()
+        .access_files
+        .insert((TARGET.into(), "u_1".into()), "view".into());
+    st.store
+        .links_replace(
+            "sample",
+            "src_ok",
+            &[oc_model::links::Edge {
+                src_block: String::new(),
+                dst_file: TARGET.into(),
+                dst_block: String::new(),
+                dst_row: String::new(),
+                kind: oc_model::links::Kind::Embed,
+            }],
+            1,
+        )
+        .await
+        .unwrap();
+    host.lock()
+        .unwrap()
+        .access_files
+        .insert(("src_ok".into(), "u_1".into()), "view".into());
+    // The target answer is cached first, then the batch fails.
+    let url = format!("http://{addr}/api/v1/files/{TARGET}/backlinks");
+    let (_, v) = get_json(url.clone(), &api_token("u_1")).await;
+    assert_eq!(v["total"], 1, "{v}");
+    host.lock().unwrap().access_batch_fail = true;
+    let (s, v) = get_json(url, &api_token("u_9")).await;
+    // u_9's target check fails too: no answer rather than an unfiltered one.
+    assert!(s == 403 || v["items"] == json!([]), "{s} {v}");
+}
+
+/// The feature is off by default: no routes answer, no MCP tool, no rows written.
+#[tokio::test]
+async fn links_are_off_by_default() {
+    let (addr, st, host, _db) = serve(|h| {
+        on(h);
+        h.flags.remove("links");
+    })
+    .await;
+    host.lock()
+        .unwrap()
+        .access_files
+        .insert((TARGET.into(), "u_1".into()), "view".into());
+    let (s, v) = get_json(
+        format!("http://{addr}/api/v1/files/{TARGET}/backlinks"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(s, 404);
+    assert_eq!(v["code"], "LINKS_OFF");
+    let res = http()
+        .post(format!("http://{addr}/mcp/sample"))
+        .bearer_auth(mcp_token("u_1"))
+        .json(&json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}))
+        .send()
+        .await
+        .unwrap();
+    let list: Value = res.json().await.unwrap();
+    assert!(
+        !list["result"]["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|t| t["name"] == "canvas_backlinks")
+    );
+    assert!(st.store.links_dump().await.unwrap().is_empty());
+}
+
+/// Backfill (host key, at most 100 files) and the delete call.
+#[tokio::test]
+async fn backfill_and_delete_through_the_host_key() {
+    let (addr, st, host, _db) = serve(on).await;
+    host.lock()
+        .unwrap()
+        .files
+        .insert("src_a".into(), (ocanvas(&source("A", "See ", "h2")), 1));
+    let (s, v) = host_key(
+        &addr,
+        reqwest::Method::POST,
+        "/api/v1/links/index",
+        Some(json!({"fileIds": ["src_a", "missing"]})),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(
+        v["indexed"],
+        json!([{"fileId": "src_a", "links": 1, "dropped": 0}])
+    );
+    assert_eq!(v["failed"][0]["fileId"], "missing");
+    assert_eq!(
+        st.store.links_from("sample", "src_a").await.unwrap().len(),
+        1
+    );
+    let too_many: Vec<String> = (0..101).map(|i| format!("f{i}")).collect();
+    let (s, _) = host_key(
+        &addr,
+        reqwest::Method::POST,
+        "/api/v1/links/index",
+        Some(json!({"fileIds": too_many})),
+    )
+    .await;
+    assert_eq!(s, 400);
+    let (s, v) = host_key(
+        &addr,
+        reqwest::Method::DELETE,
+        "/api/v1/links/files/src_a",
+        None,
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(v["removed"], 1);
+    assert!(
+        st.store
+            .links_from("sample", "src_a")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    // A person's token may not delete.
+    let res = http()
+        .delete(format!("http://{addr}/api/v1/links/files/src_a"))
+        .bearer_auth(api_token("u_1"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 403);
+}
+
+/// LINK-A5: exports write a canvas link as a link to the host URL with its label, and the
+/// `.ocanvas` keeps the node.
+#[tokio::test]
+async fn exports_write_host_urls() {
+    let (addr, st, host, _db) = serve(on).await;
+    host.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (ocanvas(&source("A", "Plan in ", "h2")), 1));
+    let _a = Peer::join(&st, grant("u_a", Role::Edit)).await;
+    let res = http()
+        .get(format!("http://{addr}/api/v1/files/{FILE}/export/md"))
+        .header("x-opencanvas-host", "sample")
+        .header("x-opencanvas-key", KEY)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let md = res.text().await.unwrap();
+    assert!(
+        md.contains("[MARKER-OLD-LABEL](https://docs.acme.test/f/doc_target#h2)"),
+        "{md}"
+    );
+    let res = http()
+        .get(format!("http://{addr}/api/v1/files/{FILE}/export/html"))
+        .header("x-opencanvas-host", "sample")
+        .header("x-opencanvas-key", KEY)
+        .send()
+        .await
+        .unwrap();
+    let html = res.text().await.unwrap();
+    assert!(
+        html.contains("href=\"https://docs.acme.test/f/doc_target#h2\""),
+        "{html}"
+    );
+    let res = http()
+        .get(format!("http://{addr}/api/v1/files/{FILE}/export/json"))
+        .header("x-opencanvas-host", "sample")
+        .header("x-opencanvas-key", KEY)
+        .send()
+        .await
+        .unwrap();
+    let j: Value = res.json().await.unwrap();
+    assert_eq!(j["content"][1]["content"][1]["type"], "canvasLink", "{j}");
+}
+
+fn edge_to(dst: &str, kind: oc_model::links::Kind) -> oc_model::links::Edge {
+    oc_model::links::Edge {
+        src_block: String::new(),
+        dst_file: dst.into(),
+        dst_block: String::new(),
+        dst_row: String::new(),
+        kind,
+    }
+}
+
+/// GRAPH-A1 (ADR-082): no node, edge, title or count for a canvas the reader cannot open, at any
+/// depth; a hidden canvas between two readable ones does not connect them. Local and full
+/// graphs, the API, MCP and the editor route.
+#[tokio::test]
+async fn the_graph_never_shows_or_bridges_through_a_hidden_canvas() {
+    use oc_model::links::Kind;
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        for (k, v) in [
+            ("g_a", "view"),
+            ("g_b", "edit"),
+            ("g_c", "view"),
+            ("g_h", "none"),
+        ] {
+            h.access_files.insert((k.into(), "u_1".into()), v.into());
+        }
+        h.access_paths
+            .insert("g_a".into(), "Engineering / Identity".into());
+    }
+    // a → h → b (h hidden), a → c, b → a? no: b is only reachable through h.
+    st.store
+        .links_replace(
+            "sample",
+            "g_a",
+            &[edge_to("g_h", Kind::Link), edge_to("g_c", Kind::Embed)],
+            1,
+        )
+        .await
+        .unwrap();
+    st.store
+        .links_replace("sample", "g_h", &[edge_to("g_b", Kind::Link)], 2)
+        .await
+        .unwrap();
+    st.store
+        .links_replace("sample", "g_b", &[edge_to("g_c", Kind::Link)], 3)
+        .await
+        .unwrap();
+
+    let ids = |v: &Value| -> Vec<String> {
+        let mut n: Vec<String> = v["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| n["id"].as_str().unwrap().to_string())
+            .collect();
+        n.sort();
+        n
+    };
+    // Depth 1 from a: a and c (h is hidden).
+    let (s, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=1"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(ids(&v), vec!["g_a", "g_c"], "{v}");
+    assert_eq!(
+        v["edges"],
+        json!([{"from": "g_a", "to": "g_c", "kind": "embed"}])
+    );
+    let a = v["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["id"] == "g_a")
+        .unwrap();
+    assert_eq!(a["space"], "Engineering");
+    assert_eq!(a["out"], 1, "the hidden canvas is not counted: {a}");
+    // Depth 3 from a: b is reached through c (b → c), never through h.
+    let (_, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=3"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(ids(&v), vec!["g_a", "g_b", "g_c"], "{v}");
+    assert!(!v.to_string().contains("g_h"), "{v}");
+    let edges = v["edges"].as_array().unwrap();
+    assert!(
+        !edges.iter().any(|e| e["from"] == "g_a" && e["to"] == "g_b"),
+        "a and b must not be joined through h: {v}"
+    );
+    // Only links, depth 2: c is an embed, so nothing beyond a.
+    let (_, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=2&kinds=link"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(ids(&v), vec!["g_a"], "{v}");
+    // Full graph: the readable canvases, no hidden one, and `total` because all were checked.
+    let (s, full) = get_json(format!("http://{addr}/api/v1/graph"), &api_token("u_1")).await;
+    assert_eq!(s, 200, "{full}");
+    assert_eq!(ids(&full), vec!["g_a", "g_b", "g_c"], "{full}");
+    assert_eq!(full["truncated"], false);
+    assert_eq!(full["total"], 3);
+    assert!(!full.to_string().contains("g_h"));
+    // MCP answers the same.
+    let res = http()
+        .post(format!("http://{addr}/mcp/sample"))
+        .bearer_auth(mcp_token("u_1"))
+        .json(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": {"name": "canvas_graph", "arguments": {}}}))
+        .send()
+        .await
+        .unwrap();
+    let mcp: Value = res.json().await.unwrap();
+    assert_eq!(mcp["result"]["structuredContent"], full, "{mcp}");
+    // A reader who can open only a: just a.
+    host.lock()
+        .unwrap()
+        .access_files
+        .insert(("g_a".into(), "u_2".into()), "view".into());
+    let (_, v) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=3"),
+        &api_token("u_2"),
+    )
+    .await;
+    assert_eq!(ids(&v), vec!["g_a"], "{v}");
+    assert_eq!(v["edges"], json!([]));
+    // A root the reader cannot open: no answer.
+    let (s, _) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_h"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(s, 403);
+    // Bad parameters.
+    let (s, _) = get_json(
+        format!("http://{addr}/api/v1/graph?root=g_a&depth=4"),
+        &api_token("u_1"),
+    )
+    .await;
+    assert_eq!(s, 400);
+}
+
+/// Two full graphs a minute per person.
+#[tokio::test]
+async fn full_graphs_are_rate_limited() {
+    let (addr, _st, _host, _db) = serve(on).await;
+    let mut codes = vec![];
+    for limit in [10, 11, 12] {
+        // Different parameters, so the cache does not answer.
+        let (s, _) = get_json(
+            format!("http://{addr}/api/v1/graph?limit={limit}"),
+            &api_token("u_rl"),
+        )
+        .await;
+        codes.push(s);
+    }
+    assert_eq!(codes, vec![200, 200, 429]);
+}
+
+async fn session_on(st: &oc_server::SharedState, user: &str, file: &str, title: &str) -> String {
+    let t = ulid::Ulid::new().to_string();
+    let mut g = grant(user, Role::Edit);
+    g.file.id = file.into();
+    g.file.name = title.into();
+    g.room = oc_server::grant::room_id("sample", file);
+    st.store
+        .insert_session(&t, &g, now() + 600, 0)
+        .await
+        .unwrap();
+    t
+}
+
+async fn post_json(url: String, body: Value) -> (u16, Value) {
+    let res = http().post(url).json(&body).send().await.unwrap();
+    let s = res.status().as_u16();
+    (s, res.json().await.unwrap_or(Value::Null))
+}
+
+/// LINK-04 editor routes: each link's state and current title (no title without access),
+/// the `#` targets of a canvas, and the hover preview.
+#[tokio::test]
+async fn editor_resolve_targets_and_preview() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        for (k, v) in [
+            ("t_ok", "view"),
+            ("t_none", "none"),
+            ("t_gone", "gone"),
+            ("t_here", "edit"),
+        ] {
+            h.access_files.insert((k.into(), "u_1".into()), v.into());
+        }
+        h.access_paths
+            .insert("t_ok".into(), "Engineering / Identity".into());
+        h.access_paths.insert("t_none".into(), "SECRET-PATH".into());
+        let doc = json!({"content": [
+            {"type": "paragraph", "content": [{"type": "text", "text": "Goal: every workspace requires SSO."}]},
+            {"type": "heading", "attrs": {"level": 2}, "content": [{"type": "text", "text": "Phase 2: enforce SSO"}]},
+            {"type": "paragraph", "attrs": {"blockId": "p2"}, "content": [{"type": "text", "text": "Owners keep a fallback."}]},
+        ]});
+        h.files.insert("t_ok".into(), (ocanvas(&doc), 1));
+    }
+    let t = session_on(&st, "u_1", "t_here", "Here").await;
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/links/resolve"),
+        json!({"ticket": t, "targets": [
+            {"fileId": "t_ok"}, {"fileId": "t_ok", "blockId": "h:phase-2-enforce-sso"},
+            {"fileId": "t_ok", "blockId": "gone_block"}, {"fileId": "t_none"}, {"fileId": "t_gone"}]}),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    let states: Vec<&str> = v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["state"].as_str().unwrap())
+        .collect();
+    assert_eq!(states, vec!["ok", "ok", "missing", "none", "gone"], "{v}");
+    assert_eq!(v["items"][0]["title"], "Name of t_ok");
+    assert_eq!(v["items"][1]["block"], "Phase 2: enforce SSO");
+    assert!(
+        v["items"][3].get("title").is_none(),
+        "no title without access: {v}"
+    );
+    assert!(!v.to_string().contains("SECRET-PATH"));
+
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/targets?ticket={t}&fileId=t_ok"
+        ))
+        .send()
+        .await
+        .unwrap();
+    let v: Value = res.json().await.unwrap();
+    let ids: Vec<&str> = v["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids, vec!["h:phase-2-enforce-sso", "p2"], "{v}");
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/targets?ticket={t}&fileId=t_none"
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 403);
+
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/preview?ticket={t}&fileId=t_ok"
+        ))
+        .send()
+        .await
+        .unwrap();
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["state"], "ok");
+    assert_eq!(v["path"], "Engineering / Identity");
+    assert_eq!(v["lines"][0], "Goal: every workspace requires SSO.");
+    let res = http()
+        .get(format!(
+            "http://{addr}/v1/links/preview?ticket={t}&fileId=t_ok&block=p2"
+        ))
+        .send()
+        .await
+        .unwrap();
+    let v: Value = res.json().await.unwrap();
+    assert_eq!(v["block"], "Owners keep a fallback.", "{v}");
+    for (f, want) in [("t_none", "none"), ("t_gone", "gone")] {
+        let res = http()
+            .get(format!(
+                "http://{addr}/v1/links/preview?ticket={t}&fileId={f}"
+            ))
+            .send()
+            .await
+            .unwrap();
+        let v: Value = res.json().await.unwrap();
+        assert_eq!(v["state"], want);
+        assert!(v.get("title").is_none() && v.get("lines").is_none(), "{v}");
+    }
+    // The session says what the editor may offer.
+}
+
+/// LINK-A6: Link on an unlinked mention edits the other canvas as this person, needs edit
+/// there (refused for view), replaces one block (one step) and Undo puts it back.
+#[tokio::test]
+async fn linking_a_mention_needs_edit_in_the_source_and_undoes() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        h.access_files
+            .insert(("m_src".into(), "u_1".into()), "edit".into());
+        h.access_files
+            .insert(("m_src".into(), "u_v".into()), "view".into());
+        h.access_files
+            .insert(("m_here".into(), "u_1".into()), "edit".into());
+        h.access_files
+            .insert(("m_here".into(), "u_v".into()), "view".into());
+        let doc = json!({"content": [
+            {"type": "paragraph", "attrs": {"blockId": "pm"}, "content": [{"type": "text", "text": "We follow the SSO rollout plan here."}]},
+        ]});
+        h.files.insert("m_src".into(), (ocanvas(&doc), 1));
+    }
+    let tv = session_on(&st, "u_v", "m_here", "SSO rollout plan").await;
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/backlinks/link"),
+        json!({"ticket": tv, "fileId": "m_src", "blockId": "pm", "name": "SSO rollout plan"}),
+    )
+    .await;
+    assert_eq!(s, 403, "view in the source cannot link: {v}");
+
+    let t = session_on(&st, "u_1", "m_here", "SSO rollout plan").await;
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/backlinks/link"),
+        json!({"ticket": t, "fileId": "m_src", "name": "SSO rollout plan"}),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    assert_eq!(v["blockId"], "pm");
+    let read = |st: oc_server::SharedState| async move {
+        let mut g = grant("u_1", Role::Edit);
+        g.file.id = "m_src".into();
+        g.room = oc_server::grant::room_id("sample", "m_src");
+        let host = st.hosts.iter().next().unwrap().clone();
+        let bytes = st.rooms.state(&host, &g).await.unwrap();
+        let d = oc_model::new_doc();
+        oc_model::ocanvas::apply_update_bytes(&d, &bytes).unwrap();
+        oc_model::doc_to_json(&d)
+    };
+    let doc = read(st.clone()).await;
+    let c = &doc["content"][0]["content"];
+    assert_eq!(c[1]["type"], "canvasLink", "{doc}");
+    assert_eq!(c[1]["attrs"]["fileId"], "m_here");
+    assert_eq!(c[1]["attrs"]["label"], "SSO rollout plan");
+    // Undo puts the text back.
+    let (s, v) = post_json(
+        format!("http://{addr}/v1/backlinks/unlink"),
+        json!({"ticket": t, "fileId": "m_src", "blockId": "pm"}),
+    )
+    .await;
+    assert_eq!(s, 200, "{v}");
+    let doc = read(st.clone()).await;
+    assert_eq!(
+        oc_model::links::plain_text(&doc["content"][0]),
+        "We follow the SSO rollout plan here."
+    );
+    assert!(!doc.to_string().contains("canvasLink"), "{doc}");
+    // Twice: nothing left to undo.
+    let (s, _) = post_json(
+        format!("http://{addr}/v1/backlinks/unlink"),
+        json!({"ticket": t, "fileId": "m_src", "blockId": "pm"}),
+    )
+    .await;
+    assert_eq!(s, 404);
+}
+
+/// LINK-A5: an editor older than 0.5 has no `canvasLink` in its schema and deletes each one it
+/// is sent (y-prosemirror drops nodes it cannot show; `links/compat.test.ts` shows it). The
+/// room refuses that update and closes the session with 4426; a current editor (`caps=links`)
+/// may delete a link as any edit.
+#[tokio::test]
+async fn an_editor_older_than_0_5_cannot_delete_canvas_links() {
+    let (_addr, st, host, _db) = serve(on).await;
+    host.lock()
+        .unwrap()
+        .files
+        .insert(FILE.into(), (ocanvas(&source("A", "Plan in ", "h2")), 1));
+    let mut new = Peer::join(&st, {
+        let mut g = grant("u_new", Role::Edit);
+        g.links_caps = true;
+        g
+    })
+    .await;
+    let mut old = Peer::join(&st, grant("u_old", Role::Edit)).await;
+    new.settle().await;
+    old.settle().await;
+    // What a 0.4 editor does: remove the link element from its paragraph.
+    let remove_link = |d: &yrs::Doc| {
+        use yrs::{Transact, XmlFragment, XmlOut};
+        let c = d.get_or_insert_xml_fragment("content");
+        let mut t = d.transact_mut();
+        for i in 0..c.len(&t) {
+            if let Some(XmlOut::Element(p)) = c.get(&t, i) {
+                let at = (0..p.len(&t))
+                    .find(|j| matches!(p.get(&t, *j), Some(XmlOut::Element(e)) if e.tag().as_ref() == "canvasLink"));
+                if let Some(at) = at {
+                    p.remove_range(&mut t, at, 1);
+                    return;
+                }
+            }
+        }
+        panic!("no canvasLink in the room");
+    };
+    old.edit(remove_link);
+    old.settle().await;
+    assert_eq!(old.closed, Some(4426), "the old editor's session ends");
+    assert!(old.denied > 0);
+    let json = |st: oc_server::SharedState| async move {
+        let host = st.hosts.iter().next().unwrap().clone();
+        let bytes = st
+            .rooms
+            .state(&host, &grant("u_x", Role::View))
+            .await
+            .unwrap();
+        let d = oc_model::new_doc();
+        oc_model::ocanvas::apply_update_bytes(&d, &bytes).unwrap();
+        oc_model::doc_to_json(&d).to_string()
+    };
+    assert!(
+        json(st.clone()).await.contains("canvasLink"),
+        "the link stays"
+    );
+    // A current editor deletes it as any edit.
+    new.edit(remove_link);
+    new.settle().await;
+    assert_eq!(new.closed, None);
+    poll(|| {
+        let st = st.clone();
+        async move { !json(st).await.contains("canvasLink") }
+    })
+    .await;
+}
+
+/// p95 of `n` timed runs of `f(i)`.
+async fn p95<F, Fut>(n: usize, mut f: F) -> std::time::Duration
+where
+    F: FnMut(usize) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    let mut t = vec![];
+    for i in 0..n {
+        let at = std::time::Instant::now();
+        f(i).await;
+        t.push(at.elapsed());
+    }
+    t.sort();
+    t[(n * 95).div_ceil(100) - 1]
+}
+
+/// LINK-A4 (benchmark, run once: `cargo test --test links -- --ignored --nocapture bench_`):
+/// backlinks of a canvas with 500 linking canvases, the host answering access in 20 ms, a new
+/// reader each run (nothing cached). Pass: p95 < 300 ms with `/access/batch`, < 1.5 s per file.
+#[tokio::test]
+#[ignore]
+async fn bench_backlinks_500_sources() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        h.access_delay_ms = 20;
+        h.access = Some(
+            (0..40)
+                .map(|i| (format!("u_b{i}"), "view".to_string()))
+                .collect(),
+        );
+        for i in 0..20 {
+            h.files
+                .insert(format!("s_{i}"), (ocanvas(&source("Plan", "See ", "")), 1));
+        }
+    }
+    for i in 0..500 {
+        st.store
+            .links_replace(
+                "sample",
+                &format!("s_{i}"),
+                &[edge_to(TARGET, oc_model::links::Kind::Link)],
+                i,
+            )
+            .await
+            .unwrap();
+    }
+    let run = |user: String| {
+        let addr = addr.clone();
+        async move {
+            let (s, v) = get_json(
+                format!("http://{addr}/api/v1/files/{TARGET}/backlinks"),
+                &api_token(&user),
+            )
+            .await;
+            assert_eq!(s, 200, "{v}");
+            assert_eq!(v["total"], 500);
+        }
+    };
+    let batch = p95(20, |i| run(format!("u_b{i}"))).await;
+    host.lock().unwrap().access_batch_off = true;
+    let single = p95(20, |i| run(format!("u_b{}", 20 + i))).await;
+    eprintln!(
+        "LINK-A4: 500 sources, host 20 ms: p95 {batch:?} with /access/batch, {single:?} with per-file /access"
+    );
+    assert!(batch < std::time::Duration::from_millis(300), "{batch:?}");
+    assert!(
+        single < std::time::Duration::from_millis(1500),
+        "{single:?}"
+    );
+}
+
+/// GRAPH-A2 (benchmark, run once): a local graph at depth 2 over 500 edges, the host answering
+/// access in 20 ms, a new reader each run. Pass: p95 < 250 ms with `/access/batch`.
+#[tokio::test]
+#[ignore]
+async fn bench_local_graph_depth_2() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        h.access_delay_ms = 20;
+        h.access = Some(
+            (0..20)
+                .map(|i| (format!("u_g{i}"), "view".to_string()))
+                .collect(),
+        );
+    }
+    // The root links to 25 canvases, each linking to 19 more: 500 edges, 501 canvases.
+    let mid: Vec<oc_model::links::Edge> = (0..25)
+        .map(|i| edge_to(&format!("m_{i}"), oc_model::links::Kind::Link))
+        .collect();
+    st.store
+        .links_replace("sample", "root", &mid, 1)
+        .await
+        .unwrap();
+    for i in 0..25 {
+        let leaves: Vec<oc_model::links::Edge> = (0..19)
+            .map(|j| edge_to(&format!("l_{i}_{j}"), oc_model::links::Kind::Link))
+            .collect();
+        st.store
+            .links_replace("sample", &format!("m_{i}"), &leaves, 2)
+            .await
+            .unwrap();
+    }
+    let t = p95(20, |i| {
+        let addr = addr.clone();
+        async move {
+            let (s, v) = get_json(
+                format!("http://{addr}/api/v1/graph?root=root&depth=2&limit=500"),
+                &api_token(&format!("u_g{i}")),
+            )
+            .await;
+            assert_eq!(s, 200, "{v}");
+            assert_eq!(
+                v["edges"].as_array().unwrap().len(),
+                499,
+                "{}",
+                v["truncated"]
+            );
+        }
+    })
+    .await;
+    eprintln!("GRAPH-A2: depth 2, 500 edges, host 20 ms: p95 {t:?} with /access/batch");
+    assert!(t < std::time::Duration::from_millis(250), "{t:?}");
+}

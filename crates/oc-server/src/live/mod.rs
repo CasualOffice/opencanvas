@@ -336,6 +336,7 @@ pub fn derive(
         members: vec![],
         wopi_history: None,
         ext_blocks: false,
+        links_caps: false,
         subdoc: false,
         live: crate::grant::LiveGrant {
             claims: vec![],
@@ -989,6 +990,7 @@ mod tests {
             members: vec![],
             wopi_history: None,
             ext_blocks: true,
+            links_caps: false,
             subdoc: false,
             live: Default::default(),
         };

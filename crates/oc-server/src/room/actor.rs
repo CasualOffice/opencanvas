@@ -80,6 +80,10 @@ struct Pending {
     authors: Vec<String>,
     token: String,
     meta: SaveMeta,
+    /// LINK-02: the save's outgoing links, written to the index once the host acknowledges
+    /// it. `None`: links are off, or the row came back from the outbox (extracted from the
+    /// body then).
+    links: Option<Arc<oc_model::links::Extracted>>,
 }
 
 impl From<OutboxRow> for Pending {
@@ -93,6 +97,7 @@ impl From<OutboxRow> for Pending {
             meta,
             authors: r.authors,
             token: r.token,
+            links: None,
         }
     }
 }
@@ -482,7 +487,8 @@ fn build_save_body(
     meta: &SaveMeta,
     history: Option<(crate::hosts::FileHistoryLimits, &mut FileHist)>,
     search: oc_model::search::Options,
-) -> Result<Vec<u8>, String> {
+    links: Option<&oc_model::links::UrlPatterns>,
+) -> Result<(Vec<u8>, Option<oc_model::links::Extracted>), String> {
     let fh = history.map(|(limits, fh)| {
         let cur = oc_model::doc_to_json(doc);
         fh.history.advance(
@@ -507,8 +513,10 @@ fn build_save_body(
         fh.keep_prev = meta.checkpoint;
         fh.history.clone()
     });
-    oc_model::ocanvas::write_ocanvas_opts(doc, commit, fh.as_ref(), search)
-        .map_err(|e| e.to_string())
+    let (body, document) = oc_model::ocanvas::write_ocanvas_doc(doc, commit, fh.as_ref(), search)
+        .map_err(|e| e.to_string())?;
+    // LINK-02: the same document.json the save wrote, so no second encode.
+    Ok((body, links.map(|p| oc_model::links::extract(&document, p))))
 }
 
 /// Everything a save needs, taken from the room so that the JSON, `.ocanvas` and history work
@@ -521,6 +529,8 @@ struct SaveBuild {
     /// The history limits and the room's in-file history (`None`: recover it from the host).
     history: Option<(crate::hosts::FileHistoryLimits, Option<FileHist>)>,
     search: oc_model::search::Options,
+    /// LINK-02: `[host.links] url_patterns` when `[host.flags] links` is on.
+    links: Option<oc_model::links::UrlPatterns>,
     row: OutboxRow,
     epoch: i64,
     /// Memory durability: the database gets this state before the host is asked to.
@@ -544,6 +554,7 @@ impl SaveBuild {
             meta,
             history,
             search,
+            links,
             mut row,
             epoch,
             dump,
@@ -611,6 +622,7 @@ impl SaveBuild {
                         &meta,
                         history.as_mut().map(|(l, h, _)| (*l, h)),
                         search,
+                        links.as_ref(),
                     )
                 });
             // The rebuilt doc is gone: give its blocks back, or this (now idle) blocking
@@ -628,7 +640,8 @@ impl SaveBuild {
             }
         };
         out.file_hist = hist;
-        row.payload = match body {
+        let extracted;
+        (row.payload, extracted) = match body {
             Ok(b) => b,
             Err(e) => {
                 out.pending = Err((e, None));
@@ -642,6 +655,7 @@ impl SaveBuild {
         }
         let mut pending = Pending::from(row);
         pending.meta = meta;
+        pending.links = extracted.map(Arc::new);
         out.pending = Ok(pending);
         out
     }
@@ -1831,6 +1845,18 @@ impl Room {
             }
             return;
         }
+        // LINK-01 (LINK-A5): the same for `canvasLink` (editors before 0.5; `caps=links`).
+        if !grant.links_caps && filter::removes_canvas_link(&self.doc, &bytes) {
+            tracing::info!(room = %self.id, "update refused: removes a canvas link from a client without caps=links");
+            self.deny(conn, "this editor is out of date; reopen the canvas");
+            if let Some(p) = self.peers.get(&conn) {
+                let _ = p.tx.send(Outbound::Close(
+                    4426,
+                    "editor out of date: reopen the canvas".into(),
+                ));
+            }
+            return;
+        }
         // LIVE-02: the same for `liveBlock` and `blockRef` (editors before 0.3 lack them, and
         // `caps=live` says a connection keeps them), plus the depth rule, the reference limit,
         // the snapshot policy, the feature flag and `perms.live` for adding one.
@@ -2881,6 +2907,7 @@ impl Room {
                 .file_history()
                 .map(|limits| (limits, self.file_hist.take())),
             search: self.host.search().model_options(),
+            links: self.links_patterns(),
             row,
             epoch: self.epoch,
             dump,
@@ -2992,6 +3019,47 @@ impl Room {
         }
     }
 
+    /// `[host.links] url_patterns` when this room's links go into the index.
+    fn links_patterns(&self) -> Option<oc_model::links::UrlPatterns> {
+        let c = crate::links::LinksCfg::of(&self.host);
+        (c.on && self.ctx.store.links_supported()).then_some(c.patterns)
+    }
+
+    /// Replaces this file's rows in the link index with an acknowledged save's links, off the
+    /// actor. A pending row recovered from the outbox has no extraction: its body is read.
+    fn index_links(&self, pending: &Pending) {
+        let Some(patterns) = self.links_patterns() else {
+            return;
+        };
+        let store = self.ctx.store.clone();
+        let metrics = self.ctx.metrics.clone();
+        let (host_id, file_id) = (self.host.id.clone(), self.file_id.clone());
+        let have = pending.links.clone();
+        let body = pending.body.clone();
+        tokio::spawn(async move {
+            let extracted = match have {
+                Some(e) => e,
+                None => {
+                    let e = tokio::task::spawn_blocking(move || {
+                        oc_model::ocanvas::read_ocanvas(&body).ok().map(|l| {
+                            let json = oc_model::doc_to_json(&l.doc);
+                            oc_model::links::extract(&json, &patterns)
+                        })
+                    })
+                    .await
+                    .ok()
+                    .flatten();
+                    match e {
+                        Some(e) => Arc::new(e),
+                        None => return,
+                    }
+                }
+            };
+            crate::links::index_saved(&store, &metrics, &host_id, &file_id, &extracted, now_ms())
+                .await;
+        });
+    }
+
     async fn save_done(&mut self, id: &str, result: Result<PutOutcome, String>) {
         self.save.in_flight = false;
         let Some(pending) = self.save.pending.clone().filter(|p| p.id == id) else {
@@ -3028,6 +3096,9 @@ impl Room {
                     tracing::error!(room = %self.id, error = %e, "recording save failed");
                 }
                 tracing::info!(room = %self.id, version = ?self.host_version, "saved to host");
+                // LINK-02 (ADR-081): only now, with the host's acknowledgement, does the index
+                // follow this save.
+                self.index_links(&pending);
                 self.flush_events(true);
                 self.emit(crate::events::SAVED, json!({"version": self.host_version}));
                 let version = self.host_version.clone();
@@ -3448,14 +3519,28 @@ mod tests {
         let opts = oc_model::search::Options::default();
         let mut live_hist = FileHist::from_file(&doc, None);
         let mut snap_hist = FileHist::from_file(&doc, None);
-        let live =
-            build_save_body(&doc, &commit, &meta, Some((limits, &mut live_hist)), opts).unwrap();
+        let live = build_save_body(
+            &doc,
+            &commit,
+            &meta,
+            Some((limits, &mut live_hist)),
+            opts,
+            None,
+        )
+        .unwrap();
         let state = doc
             .transact()
             .encode_state_as_update_v1(&StateVector::default());
         let copy = doc_from_state(&state).unwrap();
-        let snap =
-            build_save_body(&copy, &commit, &meta, Some((limits, &mut snap_hist)), opts).unwrap();
+        let snap = build_save_body(
+            &copy,
+            &commit,
+            &meta,
+            Some((limits, &mut snap_hist)),
+            opts,
+            None,
+        )
+        .unwrap();
         assert_eq!(live, snap);
         assert_eq!(live_hist.prev, snap_hist.prev);
     }

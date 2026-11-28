@@ -10,9 +10,18 @@ export interface Meta {
   icon: string;
   tone: Tone;
   template: string;
+  /** LINK-05: the canvas's other names (unlinked mentions, the `[[` picker through search). */
+  aliases?: string[];
 }
 
 export const metaMap = (doc: Y.Doc) => doc.getMap<unknown>("meta");
+
+const aliasesOf = (v: unknown): string[] | undefined => {
+  const list = Array.isArray(v) ? v : v && typeof (v as { toArray?: unknown }).toArray === "function" ? (v as { toArray(): unknown[] }).toArray() : null;
+  if (!list) return undefined;
+  const out = [...new Set(list.filter((x): x is string => typeof x === "string").map((x) => x.trim().slice(0, 100)).filter(Boolean))].slice(0, 8);
+  return out.length ? out : undefined;
+};
 
 function read(doc: Y.Doc): Meta {
   const m = metaMap(doc);
@@ -21,6 +30,7 @@ function read(doc: Y.Doc): Meta {
     icon: String(m.get("icon") ?? "file-text"),
     tone: (m.get("tone") as Tone) ?? "gray",
     template: String(m.get("template") ?? ""),
+    aliases: aliasesOf(m.get("aliases")),
   };
 }
 
