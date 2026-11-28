@@ -218,6 +218,11 @@ light/dark/none, 1-3×); context menu (shape and canvas, Arrange submenu); Ctrl/
 middle-drag pan, Shift+1 fit; Follow and Go to cursor with the simulated peer; phone: the board opens behind "Tap to
 open board".
 
-Not covered in this pass: import (draw.io, Excalidraw) and two real browsers need the canvas server; frame time at
-2,000 shapes (`e2e/perf/board-frames.perf.ts` with `PERF_SIZES=2000`) was not run because the disk was under the 10 GB
-floor set for this pass.
+**2,000 shapes** (`e2e/perf/board-frames.perf.ts`, `PERF_SIZES=2000`, 3,000 connectors, production build, full screen
+1280 × 900, Playwright Chromium on this Mac): pan p95 16.8 ms and no frame over 25 ms; Ctrl+wheel zoom p95 16.7 ms, 2 of
+204 frames over 25 ms (max 33.4 ms); dragging one shape p95 16.8 ms (input latency p95 21 ms), twenty shapes p95 16.7 ms;
+a remote peer moving 5 shapes every 16 ms p95 16.8 ms; at the fit view (11 %) pan p95 16.8 ms, and dragging one shape
+had one 53 ms long task on release. Heap 38 MB loaded, 46 MB after. No defect; numbers in
+`e2e/perf/results/frames-qa2000.json`.
+
+Not covered in this pass: import (draw.io, Excalidraw) and two real browsers need the canvas server.
