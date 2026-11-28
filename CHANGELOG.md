@@ -7,6 +7,20 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+### OpenCanvas Workspace
+
+- Every release tag now publishes the Workspace image `ghcr.io/casualoffice/opencanvas-workspace`
+  (`:<version>`, and `:latest` for final releases) for linux/amd64 and linux/arm64, built natively
+  per architecture with a build-provenance attestation, and its crate SBOM is attached to the
+  release. Try it with
+  `docker run -p 8080:8080 -v opencanvas:/data ghcr.io/casualoffice/opencanvas-workspace` (WS-21).
+- The Workspace image now copies every web package's manifest (block-sdk, client and sheet were
+  missing); `tools/check-dockerfile.py` checks the Workspace Dockerfile as well as the engine's.
+- The Workspace guide, `docs/42-WORKSPACE-GUIDE.md`: install, first-run setup code, invites,
+  passkeys, sharing, public links, backups, upgrades and every `WS_*` setting. A Workspace section
+  in the README, a Workspace page on the website with a home-page section and navigation links, and
+  the guide as a docs page (WS-24).
+
 ### Fixed
 
 - Flaky CI (RLB-04): the sample hosts write their metadata and stored files atomically, so the
