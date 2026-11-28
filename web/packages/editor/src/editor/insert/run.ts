@@ -73,7 +73,7 @@ export function runRow(editor: Editor, range: Range | null, row: Row): void {
     return insertBlock(editor, range, n);
   }
   if (b.key === "database")
-    return later(editor, range, async () => {
+    return void later(editor, range, async () => {
       const d = await loadDatabase();
       const doc = docOf(editor);
       const id = d.createDatabase(doc, "blank");
@@ -81,5 +81,5 @@ export function runRow(editor: Editor, range: Range | null, row: Row): void {
       return [{ type: "database", attrs: { dbId: id } }, { type: "paragraph" }];
     });
   if (b.key === "diagram")
-    return later(editor, range, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(docOf(editor), DIAGRAM_PRESET[v] ?? "blank") } }, { type: "paragraph" }]);
+    return void later(editor, range, async () => [{ type: "board", attrs: { boardId: (await loadBoard()).createBoard(docOf(editor), DIAGRAM_PRESET[v] ?? "blank") } }, { type: "paragraph" }]);
 }
