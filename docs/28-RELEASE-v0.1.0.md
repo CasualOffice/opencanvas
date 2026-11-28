@@ -2,7 +2,7 @@
 
 **Embeddable collaborative workspace canvas.**
 
-**Status:** prepared from main; not yet tagged. Scope: [docs/26](26-RELEASE-v0.1.0-SCOPE.md)
+**Status:** released 2026-11-23, tag `v0.1.0`. Scope: [docs/26](26-RELEASE-v0.1.0-SCOPE.md)
 (tracker REL-02, REL-03). Licence: Apache-2.0 (ADR-037).
 
 v0.1.0 is the first final release of OpenCanvas. It is open source under the

@@ -17,7 +17,7 @@ Made by CasualOffice (https://github.com/CasualOffice). This file was last updat
 - Storage: SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 - Cluster: Several nodes on MySQL or MariaDB with Redis (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 - Launch: JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
-- Integrations: Jitsi Meet, Nextcloud, Mattermost and Element / Matrix (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
+- Integrations: Jitsi Meet, Nextcloud with Talk, Mattermost and Element / Matrix (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
 - API: REST under /api/v1, described by an OpenAPI 3.1 document (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/32-RELEASE-v0.2.0.md)
 - Exports: Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar (source: https://github.com/CasualOffice/opencanvas/blob/main/docs/13-OPERATIONS-AND-DEPLOYMENT.md)
 - Templates: 40 templates in 9 categories (source: https://github.com/CasualOffice/opencanvas/blob/main/README.md)
@@ -28,7 +28,7 @@ Made by CasualOffice (https://github.com/CasualOffice). This file was last updat
 
 ## Site
 - [OpenCanvas – Open Source Notion & Miro Alternative | CasualOffice](https://canvas.casualoffice.org/): Self-hosted collaborative documents, spreadsheets, databases, whiteboards and Gantt charts. Embed OpenCanvas into your application. Rust, Yjs and Apache-2.0.
-- [Roadmap](https://canvas.casualoffice.org/roadmap.html): What OpenCanvas has built, what is in review and in progress, and the phases that follow, from the project's tracker.
+- [Roadmap](https://canvas.casualoffice.org/roadmap.html): What OpenCanvas has released, what is in review and in progress, and the releases and tracks that follow, from the project's tracker.
 - [Changelog](https://canvas.casualoffice.org/changelog.html): What changed in OpenCanvas and how each change was verified, from the project's integration log.
 - [Brand](https://canvas.casualoffice.org/brand.html): OpenCanvas logos to download, how to name OpenCanvas in a product that embeds it, and what the Apache 2.0 licence asks when you redistribute it.
 - [Interactive demo](https://canvas.casualoffice.org/app/#demo): the real editor with a sample canvas, no server; its assistant plays a scripted run, no AI server

@@ -1,7 +1,8 @@
 # 40 — OpenCanvas Workspace (first-party host)
 
-**Status:** Proposed, 2026-11-28. Design only: nothing here is built until the owner approves this plan, ADR-085 and the
-prototype ([docs/prototypes/workspace/workspace.html](prototypes/workspace/workspace.html)) (ADR-011). Tracker rows WS-01..WS-24.
+**Status:** Accepted 2026-11-28: the owner approved this plan, ADR-085 and the prototype
+([docs/prototypes/workspace/workspace.html](prototypes/workspace/workspace.html)) with the changes in §0 (ADR-011). A parallel
+track to v0.5; SSO is in the backlog. Tracker rows WS-01..WS-25.
 
 **Product name.** *OpenCanvas Workspace*, by CasualOffice. In the app, on the first-run screen and in the docs the brand line is
 "OpenCanvas Workspace · by CasualOffice"; marketing-facing places never say bare "OpenCanvas".

@@ -1,18 +1,19 @@
 # 09 — Roadmap and delivery
 
-**Status:** v0.2 of this plan, 2026-11-23 (release roadmap and feature priorities added; owner). Rows in
-[10-EXECUTION-TRACKER.md](10-EXECUTION-TRACKER.md) carry the detail.
+**Status:** updated 2026-11-28 (third revision of this plan). Released: v0.4.1 (2026-11-28). In progress: v0.4.2 (the
+partial-sync remainder) and v0.5 (plugins, backlinks, a knowledge graph), with the Workspace track in
+parallel. Planned: v0.6. Rows in [10-EXECUTION-TRACKER.md](10-EXECUTION-TRACKER.md) carry the detail.
 
 | Phase | Goal | Exit gate |
 |---|---|---|
-| **P0 Foundation** | Research, PRD, HLD, technical design, ADRs, tracker; **UI prototype approved on Artifact**; repo scaffold + CI | User approval of PRD/HLD and UI-01 prototype |
-| **P1 MVP** | Rust server (JWT launch, rooms, WAL, commits, SQLite); editor with text/lists/tables/images/files/links/embeds; presence + cursors; preview; MD/HTML/.ocanvas export; embed SDK; sample host | Two browsers co-edit via sample host; commit round-trip; convergence fuzz green; p95 < 150 ms @ 20 editors |
-| **P2 Board & scale** | Board block; columns; comments; WOPI mode; MySQL/MariaDB + Redis cluster; PDF/DOCX/PNG export; templates; role API; Helm | 3-node chaos test (kill owner, no acked edit lost); MySQL+MariaDB CI; board fuzz green |
-| **P3 Platform** | The release roadmap below: portable live blocks, an extensible block SDK and stable headless APIs (v0.2), then offline-first editing, version history, search and automation (v0.3) | Each release ships behind feature flags with its acceptance rows in docs/23 |
+| **P0 Foundation** | Research, PRD, HLD, technical design, ADRs, tracker; **UI prototype approved on Artifact**; repo scaffold + CI | User approval of PRD/HLD and UI-01 prototype (met: UI-02 approved 2026-11-21, PRD and HLD signed off 2026-11-24) |
+| **P1 MVP** | Rust server (JWT launch, rooms, WAL, commits, SQLite); editor with text/lists/tables/images/files/links/embeds; presence + cursors; preview; MD/HTML/.ocanvas export; embed SDK; sample host. Shipped in v0.1.0-alpha.1 and v0.1.0 (2026-11-23) | Two browsers co-edit via sample host; commit round-trip; convergence fuzz green; p95 < 150 ms @ 20 editors |
+| **P2 Board & scale** | Board block; columns; comments; WOPI mode; MySQL/MariaDB + Redis cluster; PDF/DOCX/PNG export; templates; role API; Helm. Shipped across v0.1.0 to v0.1.2 | 3-node chaos test (kill owner, no acked edit lost); MySQL+MariaDB CI; board fuzz green |
+| **P3 Platform** | The releases in the release roadmap: the stable headless API, webhooks, version history and the block SDK (v0.2); live blocks, offline-first editing, search and automation (v0.3); spreadsheets, advanced databases, partial sync and performance (v0.4); plugins, backlinks and a knowledge graph (v0.5); advanced automation and app building (v0.6) | Each release has its acceptance rows in docs/23, a security audit in docs/18, release notes with upgrade notes and known limitations, and a tag; the release notes name every changed default (partial sync is on by default since v0.4.0) |
 
 AI was brought forward (owner directive, 2026-11-22): phase 1 of the assistant, the MCP
-endpoint and the model providers is built and in review (tracker rows AI-01, AI-02, AI-UI;
-design [24](24-AI-AND-MCP.md) §11).
+endpoint and the model providers shipped in v0.1.0-alpha.1, experimental and off by default
+(tracker rows AI-01, AI-02, AI-UI; design [24](24-AI-AND-MCP.md) §11).
 
 ## Architectural principle
 
@@ -24,18 +25,20 @@ open to a broad developer ecosystem (ADR-038).
 
 ## Release roadmap
 
-| Version | Focus |
-|---|---|
-| v0.1 | First public alpha: the collaborative editor, databases, whiteboards and embedding |
-| [v0.1.2](31-RELEASE-v0.1.2.md) | Additional host integrations, structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
-| v0.2.1 (released 2026-11-26) | The categorised insert menu (INS-01) and three fixes |
-| [v0.2.0](32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
-| [v0.3](34-ROADMAP-v0.3.md) | Portable live blocks, offline-first editing, search and automation (plan proposed 2026-11-26) |
-| [v0.4](36-ROADMAP-v0.4.md) | Performance and partial synchronization, as a benchmark, performance and maturity release: partial sync, a benchmark program with published results and CI gates, 10k connections per node and 1,000 editors in a room, lower browser memory and lazy modules; reliability drills and a security audit; also formulas, relations, rollups, virtualized databases, integrations and UX fixes (plan proposed 2026-11-26) |
-| [v0.5](38-ROADMAP-v0.5.md) | Plugins with a marketplace (signed packages, admin policy), backlinks and linked references across canvases, a knowledge graph, and SDK extension points: database views, commands, importers, exporters, automation actions and integration providers (plan proposed 2026-11-28) |
-| v0.6 | Advanced automation and app building (direction set 2026-11-28) |
-| v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
-| [Workspace](40-WORKSPACE.md) (parallel to v0.5) | OpenCanvas Workspace by CasualOffice: a first-party host in one Docker image with accounts, passkeys, SSO, workspaces, teams, sharing, search, trash, version history, backups and admin (ADR-085, proposed 2026-11-28) |
+| Version | Status | Focus |
+|---|---|---|
+| v0.1.0 | Released 2026-11-23 ([notes](28-RELEASE-v0.1.0.md)) | First final release, after v0.1.0-alpha.1 the same day: the collaborative editor, databases, whiteboards, templates and embedding, WOPI with proof keys, block schema validation |
+| v0.1.1 | Released 2026-11-23 ([changelog](../CHANGELOG.md)) | Jitsi Meet integration and temporary canvases |
+| v0.1.2 | Released 2026-11-24 ([notes](31-RELEASE-v0.1.2.md)) | Additional host integrations (Nextcloud, Mattermost, Element / Matrix), structured diagramming, version history, headless API foundation, link previews, team templates and viewer previews |
+| v0.2.0 | Released 2026-11-25 ([notes](32-RELEASE-v0.2.0.md)) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
+| v0.2.1 | Released 2026-11-26 ([changelog](../CHANGELOG.md)) | The categorised insert menu (INS-01) and three fixes |
+| v0.3.0 | Released 2026-11-26 ([notes](35-RELEASE-v0.3.0.md)) | Portable live blocks, offline-first editing, find and replace and cross-canvas search, and automation rules ([plan](34-ROADMAP-v0.3.md)) |
+| v0.4.0 | Released 2026-11-28 ([notes](37-RELEASE-v0.4.0.md)) | Spreadsheets; advanced databases (formulas, relations, rollups, 100,000 rows, Timeline/Gantt, Workload); linked charts; partial sync on by default; 10,000 connections per node; reliability drills; Nextcloud Talk ([plan](36-ROADMAP-v0.4.md)) |
+| v0.4.1 | Released 2026-11-28 ([changelog](../CHANGELOG.md)) | Spreadsheet cell comments and collaborative undo, floating linked charts, Timeline and Workload finishing touches, faster large-sheet edits, a smaller first load, SBOMs on every release |
+| v0.4.2 | In progress | The partial-sync remainder: spreadsheets as parts and the 50 MB first screen under 2 s (PSYNC-BUG-2, PSYNC-BUG-3) |
+| [v0.5](38-ROADMAP-v0.5.md) | In progress | Plugins with a marketplace (signed packages, admin policy), backlinks and linked references across canvases, a knowledge graph, and SDK extension points: database views, commands, importers, exporters, automation actions and integration providers. Prototypes and ADR-081 to ADR-084 approved 2026-11-28 |
+| [Workspace](40-WORKSPACE.md) | In progress (parallel track) | OpenCanvas Workspace by CasualOffice: a first-party host in one Docker image with accounts, passkeys, workspaces, teams, sharing, typed files, search, trash, version history, backups and admin. ADR-085 accepted 2026-11-28; SSO is in the backlog (WS-07) |
+| v0.6 | Planned | Advanced automation and app building (direction set 2026-11-28) |
 
 Alongside the releases, **structured diagramming** is its own workstream ([docs/29](29-DIAGRAMMING.md)):
 diagram mode on a board, shape libraries, ports, connectors that route around shapes, auto-layout,
@@ -44,17 +47,17 @@ ready and does not move the release commitments above.
 
 ## Feature priorities
 
-| Feature | Value | Complexity | Priority |
-|---|---|---|---|
-| Portable live blocks | Very high | High | P1 (v0.3) |
-| Extensible block SDK | Very high | High | P0 |
-| Stable headless API | Very high | Medium | P0 |
-| Offline-first collaboration | High | Very high | P1 |
-| Version history and visual diffs | High | High | P0 (v0.2) |
-| Database formulas and relations | High | Medium–high | P1 |
-| Full-text search API | High | Medium | P1 |
-| Webhooks (v0.2) and automation (v0.3) | High | Medium | P0 / P1 |
-| Developer plugin marketplace | Medium initially | Very high | P3 |
+| Feature | Value | Complexity | Priority | Status |
+|---|---|---|---|---|
+| Portable live blocks | Very high | High | P1 (v0.3) | Shipped in v0.3.0 |
+| Extensible block SDK | Very high | High | P0 | Shipped in v0.2.0; SDK blocks inside live blocks (PSDK) to do |
+| Stable headless API | Very high | Medium | P0 | Shipped in v0.2.0 (behind a flag in v0.1.2) |
+| Offline-first collaboration | High | Very high | P1 | Shipped in v0.3.0 |
+| Version history and visual diffs | High | High | P0 (v0.2) | Shipped in v0.1.2 |
+| Database formulas and relations | High | Medium–high | P1 | Shipped in v0.4.0 |
+| Full-text search API | High | Medium | P1 | Shipped in v0.3.0 (through the host's search) |
+| Webhooks (v0.2) and automation (v0.3) | High | Medium | P0 / P1 | Shipped in v0.2.0 and v0.3.0 |
+| Developer plugin marketplace | Medium initially | Very high | P3 | In progress (v0.5) |
 
 Owner decision 2026-11-24: version history and webhooks move into v0.2; portable live blocks move to
 v0.3 so v0.2 ships sooner. Before v0.2 starts, 0.1.x also gets link previews (UNF-01), host team
@@ -82,6 +85,14 @@ The detailed design plan for v0.3 is [docs/34](34-ROADMAP-v0.3.md): live blocks 
 ## v0.4 detail
 
 The detailed design plan for v0.4 is [docs/36](36-ROADMAP-v0.4.md) (owner direction 2026-11-26): the main thrust is performance and partial synchronization. Partial sync keeps databases, boards and diagrams as subdocuments loaded on view so a 50 MB canvas opens in under 2 s (ADR-076); a benchmark program (`scripts/bench/`, scheduled CI, published results with hardware and load mix, regression gates; ADR-079) drives the performance work: 10,000 connections on a 4 vCPU / 8 GB node and 1,000 editors in one room with batched presence and fan-out sharded across cores (ADR-077), lower browser memory and lazy modules. Maturity follows: crash, failover and restore drills, flaky tests, the MySQL conformance failures and a security audit of the v0.3 surfaces. Formulas, relations and rollups (ADR-078), virtualized databases, integrations and UX fixes are also in v0.4 but secondary. Caps rise only after the cluster, crash and sustained runs pass. Its delivery rows are the P3 v0.4 section of the tracker; prototypes (V4UI-01) gate the UI rows.
+
+## v0.5 detail
+
+The detailed design plan for v0.5 is [docs/38](38-ROADMAP-v0.5.md) (owner direction 2026-11-28): plugins packaged as signed files with a marketplace and admin policy (ADR-083), backlinks and linked references from a link index across canvases (ADR-081), a knowledge graph from a graph API (ADR-082), and SDK extension points for database views, commands, importers, exporters, automation actions and integration providers (ADR-084). The plan, the prototypes and ADR-081 to ADR-084 were approved on 2026-11-28. Its delivery rows are the P3 v0.5 section of the tracker.
+
+## Workspace track
+
+[docs/40](40-WORKSPACE.md) plans OpenCanvas Workspace by CasualOffice, a first-party host: one Docker image with accounts, passkeys, workspaces, teams, sharing, typed files, search, trash, version history, backups and admin, using only the documented host contract (ADR-038). The owner accepted the plan, the prototype and ADR-085 on 2026-11-28 with the changes in docs/40 §0: SSO moves to the backlog (WS-07), UX first, lightweight, a benchmark on the user base (WS-25), large rooms, and admin-configurable public links. It runs in parallel to v0.5; its rows are the Workspace track section of the tracker.
 
 ## Milestone sequence (P0 → P1)
 
