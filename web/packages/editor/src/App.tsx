@@ -18,6 +18,7 @@ import { featureOn, insertable } from "./editor/profile";
 import { resolveAsset, setAssetTicket } from "./lib/assets";
 import { setUnfurl } from "./lib/unfurl";
 import { BridgeCtx, setBridge, type Bridge, type Uploaded } from "./lib/bridge";
+import { pickFile } from "./lib/pickfile";
 import { deleteThread, useThreads } from "./lib/comments";
 import type { Demo } from "./lib/demo";
 import { demoIcons, serverIcons } from "./lib/icons";
@@ -1041,13 +1042,7 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
       session,
       importCsv: (cb) => setCsv(() => cb),
       promptUrl: (kind, cb) => setUrlAsk({ kind, cb }),
-      pickFile: (accept, cb) => {
-        const i = document.createElement("input");
-        i.type = "file";
-        i.accept = accept;
-        i.onchange = () => i.files?.[0] && cb(i.files[0]);
-        i.click();
-      },
+      pickFile,
       upload,
       openThread,
       linkClick: (url) => postToHost("UI_Link_Click", { url }),

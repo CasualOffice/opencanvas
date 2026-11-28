@@ -104,8 +104,12 @@ export const editor = (p: Person) => p.oc.locator(".ProseMirror");
 export async function applyTemplate(p: Person, name: string) {
   await expect(p.oc.locator(".tgrid")).toBeVisible({ timeout: EDITOR_READY_TIMEOUT });
   await p.oc.getByLabel("Search templates").fill(name);
-  await p.oc.locator(".tcard").filter({ hasText: name }).first().click();
-  await p.oc.getByRole("button", { name: "Use template" }).click();
+  // RLB-04-F7: on webkit-phone a mouse click on a gallery card or on "Use template" was now
+  // and then dropped (about 1 run in 10 at --repeat-each=10): a phone gets taps, as people do.
+  const touch = await p.page.evaluate(() => "ontouchstart" in window);
+  const press = (l: ReturnType<FrameLocator["locator"]>) => (touch ? l.tap() : l.click());
+  await press(p.oc.locator(".tcard").filter({ hasText: name }).first());
+  await press(p.oc.getByRole("button", { name: "Use template" }));
   await expect(editor(p)).toBeVisible();
   // The template's blocks get their ids in a second render (VH-00); typing before that lands in
   // nodes that are replaced and is lost (zc-editor-profile, ze-live-blocks.phone flaked on it).

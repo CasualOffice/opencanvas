@@ -4,10 +4,11 @@
 // t. Acceptance (docs/23 Mobile, rows left BLOCKED before): tables and database cells and
 //    views, board touch (tap to activate, one-finger pan, pinch, draw, move), the PDF viewer
 //    in full screen, mentions and the people list. Runs on WebKit (iPhone) and Chromium (Pixel).
+import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { OC, ROOT } from "../env";
-import { editor, sharedFile, shots, typeAfterHeading, blocksReady } from "../helpers";
+import { editor, sharedFile, shots, blocksReady } from "../helpers";
 
 async function demo(page: Page) {
   await page.goto(`${OC}/app/#demo&sim=quiet`);
@@ -238,12 +239,24 @@ test("MOB-06: a PDF on a phone: inline preview, full-screen viewer that fits, ba
   test.setTimeout(90_000);
   const { priya, sam } = await sharedFile(browser, { name: "E2E t · phone pdf", samRole: "view", ctx: phoneCtx() });
   const oc: FrameLocator = priya.oc;
-  await typeAfterHeading(priya, "Notes", "");
+  // The keys go in only once the canvas has the caret: under load the tap on the heading
+  // focused it late and "/file" was typed into nothing (no text, no Insert sheet).
+  const notes = editor(priya).first().locator("h2", { hasText: "Notes" });
+  await notes.tap();
+  await expect.poll(() => notes.evaluate((h) => h.closest(".ProseMirror") === h.ownerDocument.activeElement)).toBe(true);
+  await priya.page.keyboard.press("End");
+  await priya.page.keyboard.press("Enter");
   await priya.page.keyboard.type("/file");
   const sheet = oc.locator(".sheet[role=dialog][aria-label=Insert]");
   await expect(sheet).toBeVisible();
   const [chooser] = await Promise.all([priya.page.waitForEvent("filechooser"), sheet.getByRole("button", { name: /^File/ }).first().tap()]);
+  // RLB-04-F7: WebKit once sent this upload with 0 bytes and the preview then said "This PDF
+  // can't be shown here". Assert the bytes that reached the host, not only the preview.
+  const uploaded = priya.page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/v1/assets");
   await chooser.setFiles(PDF);
+  const res = await uploaded;
+  expect(res.ok(), `upload status ${res.status()}`).toBe(true);
+  expect(((await res.json()) as { size?: number }).size, "the host got every byte of the PDF").toBe(fs.statSync(PDF).size);
   const inline = oc.locator('.filev[data-display="preview"]');
   await expect(inline.locator(".pdfpg")).toHaveText("1 / 3", { timeout: 15_000 });
   await inline.getByRole("button", { name: "Expand to full screen" }).tap();

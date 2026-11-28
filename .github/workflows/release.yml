@@ -8,6 +8,8 @@
 # bundle, LICENSE and NOTICE) attached to the GitHub release with SHA-256 checksums. Both carry
 # build-provenance attestations. CycloneDX SBOMs for the Rust server and the web packages are
 # attached too (DEP-01, docs/38 §5). Pre-releases never get the `latest` tag.
+# The publish job adds SHA256SUMS (every attached file), install.sh (scripts/install.sh with this
+# release as its default) and the packaged Helm chart, and a "Quick start" section to the notes.
 #
 # Runs on a pushed tag, or by hand for an existing tag (workflow_dispatch, input `tag`).
 name: release
@@ -291,18 +293,67 @@ jobs:
     needs: [manifest, workspace-manifest, binary, sbom]
     runs-on: ubuntu-24.04
     steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
       - uses: actions/download-artifact@v4
         with: { pattern: "binary-*", path: assets, merge-multiple: true }
       - uses: actions/download-artifact@v4
         with: { name: sbom, path: assets }
+      - uses: azure/setup-helm@v4
+        with: { version: v3.16.3 }
+      - name: Install script, Helm chart and SHA256SUMS
+        run: |
+          version="${TAG#v}"
+          # The attached install.sh installs this release by default (scripts/install.sh: the latest).
+          sed "s/^DEFAULT_VERSION=\"\"\$/DEFAULT_VERSION=\"$TAG\"/" scripts/install.sh > assets/install.sh
+          grep -qx "DEFAULT_VERSION=\"$TAG\"" assets/install.sh
+          sh -n assets/install.sh
+          helm package deploy/helm/opencanvas --version "$version" --app-version "$version" -d assets
+          cd assets
+          sha256sum -- *.tar.gz *.cdx.json *.tgz install.sh > SHA256SUMS
+          cat SHA256SUMS
+          sha256sum -c SHA256SUMS
       - name: Attach the binaries and the image reference to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DIGEST: ${{ needs.manifest.outputs.digest }}
           WS_DIGEST: ${{ needs.workspace-manifest.outputs.digest }}
         run: |
+          version="${TAG#v}"
+          dl="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG"
           gh release upload "$TAG" assets/* --clobber -R "$GITHUB_REPOSITORY"
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body -q .body > body.md
+          # Quick start goes first; a re-run (workflow_dispatch) does not add it twice.
+          if ! grep -q "^## Quick start" body.md; then
+            {
+              echo "## Quick start"
+              echo
+              echo "Container (linux/amd64, linux/arm64); \`OC_DEV=1\` starts it without a key, for a first look:"
+              echo
+              echo '```sh'
+              echo "docker run -p 8080:8080 -e OC_DEV=1 $IMAGE:$version"
+              echo '```'
+              echo
+              echo "Linux binary (x86_64, aarch64), checked against \`SHA256SUMS\` and installed to \`~/.local/bin\` (\`/usr/local/bin\` as root). macOS: use the container or build from source."
+              echo
+              echo '```sh'
+              echo "curl -fsSL $dl/install.sh | sh"
+              echo '```'
+              echo
+              echo "Kubernetes (Helm 3), with the chart attached to this release:"
+              echo
+              echo '```sh'
+              echo "helm install oc $dl/opencanvas-$version.tgz --set secrets.kek=\$(openssl rand -base64 32) \\"
+              echo "  --set publicUrl=https://canvas.example.com --set-file hosts.toml=opencanvas.hosts.toml"
+              echo '```'
+              echo
+              echo "For production (\`OC_KEK\`, the hosts file, the database), see [operations](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/13-OPERATIONS-AND-DEPLOYMENT.md)."
+              echo
+              cat body.md
+            } > quick.md
+            mv quick.md body.md
+            gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file body.md
+          fi
           if ! grep -q "## Container image" body.md; then
             {
               echo
@@ -326,7 +377,7 @@ jobs:
               echo
               echo "## Binaries"
               echo
-              echo "Standalone Linux builds (x86_64, aarch64) with the editor bundle, LICENSE and NOTICE are attached below, each with a SHA-256 checksum. Images and archives carry build-provenance attestations (\`gh attestation verify\`)."
+              echo "Standalone Linux builds (x86_64, aarch64) with the editor bundle, LICENSE and NOTICE are attached below, each with a SHA-256 checksum; \`SHA256SUMS\` covers every attached file (\`sha256sum -c --ignore-missing SHA256SUMS\`). Images and archives carry build-provenance attestations (\`gh attestation verify\`)."
               echo
               echo "## Software bill of materials"
               echo

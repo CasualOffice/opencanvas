@@ -180,7 +180,29 @@ rerun them on your hardware (`scripts/bench/run`) before you size production.
 
 ## Run it
 
-With Docker, using a hosts file written from the [integration guide](docs/05-INTEGRATION-GUIDE.md):
+Quick start: the container image (`OC_DEV=1` starts it without a key, for a first look), or on
+Linux (x86_64, aarch64) the install script, which downloads the release binary, checks it against
+the release's SHA-256 checksums and installs it to `~/.local/bin` (`/usr/local/bin` as root):
+
+```sh
+docker run -p 8080:8080 -e OC_DEV=1 ghcr.io/casualoffice/opencanvas:0.4.3   # http://localhost:8080
+curl -fsSL https://raw.githubusercontent.com/CasualOffice/opencanvas/main/scripts/install.sh | sh
+```
+
+The script takes `--version v0.4.3`, `--bin-dir` and `--share-dir`. macOS has no prebuilt binary:
+use the container or build from source (below). Each release's notes repeat these commands for
+that version, with its own `install.sh`, `SHA256SUMS` and Helm chart attached (from the release
+after 0.4.3).
+
+On Kubernetes, with the chart from a checkout (or the release's `opencanvas-<version>.tgz` in
+place of the path); [operations](docs/13-OPERATIONS-AND-DEPLOYMENT.md) has the values:
+
+```sh
+helm install oc deploy/helm/opencanvas --set secrets.kek=$(openssl rand -base64 32) \
+  --set publicUrl=https://canvas.example.com --set-file hosts.toml=opencanvas.hosts.toml
+```
+
+In production, with Docker and a hosts file written from the [integration guide](docs/05-INTEGRATION-GUIDE.md):
 
 ```sh
 docker run -p 8080:8080 -v oc-data:/data \
