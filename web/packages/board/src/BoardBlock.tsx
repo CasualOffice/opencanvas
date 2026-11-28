@@ -12,7 +12,7 @@ import {
   Redo2, RouteOff, SendToBack, Spline, Square, StickyNote, Trash2, Type, Undo2, Ungroup, Waypoints, Workflow, type LucideIcon,
   ClipboardPaste, CopyPlus, ExternalLink, Keyboard, Layers, Link2, Lock, LockOpen, RotateCw, Scissors, SlidersHorizontal, SquareDashed,
 } from "lucide-react";
-import { ContextMenu, KeysDialog, LinkPop, type MenuEntry, type QuickAction } from "./menu";
+import { ContextMenu, KeysDialog, kbdLabel, LinkPop, type MenuEntry, type QuickAction } from "./menu";
 import { applyStyle, dashOf, fontOf, inkOf, lastFor, normDeg, opOf, rememberLast, rotates, rotOf, styled, swOf, type StyleKey } from "./style/style";
 // The style panel (BRD-22): its own lazy chunk, loaded the first time someone opens Style.
 type StyleModule = typeof import("./style/StylePanel");
@@ -339,6 +339,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const lastOp = useRef(0);
   /** The quick-connect + under the pointer: its new shape and connector are previewed. */
   const [qcHover, setQcHover] = useState<Side | null>(null);
+  /** BRD-17: diagram header controls folded into ⋯ (the Shell reports them by its width). */
+  const [foldItems, setFoldItems] = useState<import("./diagram/headerFold").FoldItem[]>([]);
   // The floating toolbar keeps clear of the docked panel, which it can only measure once the panel
   // is in the page: one more layout pass after it opens.
   const [, relayout] = useState(0);
@@ -2940,6 +2942,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         <>
           <div className="ocbd-scrim" onPointerDown={() => setMenu(false)} />
           <div className="ocbd-menu" role="menu" aria-label="Board options">
+            {dgm && foldItems.length ? (
+              <>
+                {foldItems.map((f) => (
+                  <button key={f.label} role="menuitem" className="ocbd-mi" disabled={f.disabled} aria-keyshortcuts={f.kbd?.replace(/Mod\+/g, "Control+")} onClick={() => (setMenu(false), f.run())}>
+                    <span className="ocbd-mil">{f.label}</span>
+                    {f.kbd ? <kbd className="ocbd-kbd" aria-hidden="true">{kbdLabel(f.kbd)}</kbd> : null}
+                  </button>
+                ))}
+                <span className="ocbd-msep" />
+              </>
+            ) : null}
             {!dgm && env.diagramming !== false ? (
               <button role="menuitem" className="ocbd-mi" aria-keyshortcuts="Shift+D" onClick={() => void openDiagram()}>
                 <Workflow size={16} strokeWidth={SW} />
@@ -3112,6 +3125,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
             selection={sel}
             exporting={exporting}
             onExportClose={() => setExporting(false)}
+            onFold={setFoldItems}
           >
             {content}
           </Shell>,

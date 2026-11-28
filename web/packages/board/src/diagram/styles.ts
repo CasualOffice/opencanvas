@@ -143,8 +143,14 @@ export const DIAGRAM_CSS = `
 .ocdg-allg{height:20rem;overflow:auto;border:1px solid var(--line);border-radius:.5rem;overscroll-behavior:contain}
 .ocdg-allg .ocdg-tiles{row-gap:0;padding:0 .25rem}
 .ocdg-tile:disabled{cursor:default}
-@media (max-width:60em){.ocdg-left{width:13.5rem}.ocdg-right{width:15rem}.ocdg-doc{display:none}}
-@media (max-width:45em){.ocdg-side{display:none}.ocdg-people{display:none}}
+@media (max-width:60em){.ocdg-left{width:13.5rem}.ocdg-right{width:15rem}}
+@media (max-width:45em){.ocdg-side{display:none}}
+/* BRD-17: the header folds by the diagram window's width (headerFold.ts); the title keeps 8 rem. */
+.ocdg-top[data-fold] .ocdg-crumb{flex:1 1 auto;min-width:8rem;overflow:hidden}
+.ocdg-top[data-fold] .ocdg-name{max-width:none;min-width:0}
+.ocdg:not(.ocdg-phone) .ocdg-top:is([data-fold="narrow"],[data-fold="tiny"]) .ocdg-back{padding:0;width:2rem;justify-content:center}
+.ocdg-av.more{background:var(--sunk);color:var(--fg-2)}
+.ocdg-lb[hidden]{display:none}
 @media (prefers-reduced-motion:reduce){.ocdg *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 `;
 

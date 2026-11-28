@@ -213,6 +213,56 @@ test.describe("Selection (decision 13)", () => {
   });
 });
 
+test.describe("BRD-17: the diagram header at narrow widths (decision 8)", () => {
+  type Box = { x: number; y: number; width: number; height: number };
+  const overlap = (a: Box, b: Box) => a.x < b.x + b.width - 0.5 && b.x < a.x + a.width - 0.5;
+  async function header(page: Page, w: number) {
+    await page.setViewportSize({ width: w, height: 800 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const board = await openDemo(page, srv.url);
+    const cover = page.locator(".ocbd-cover").first();
+    if (await cover.isVisible()) {
+      // Compact layout: the cover opens the board full screen; its options open it as a diagram.
+      await cover.click();
+      await page.locator(".ocbd.ocbd-full").getByRole("button", { name: "Board options" }).click();
+      await page.getByRole("menuitem", { name: /Open as diagram/ }).click();
+    } else {
+      await board.click({ position: { x: 40, y: 40 } });
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Shift+D");
+    }
+    await expect(page.getByRole("dialog", { name: /^Diagram: / })).toBeVisible();
+    return page.locator(".ocdg-top");
+  }
+
+  test("500 px: the title keeps 8 rem, nothing overlaps, the folded controls are in ⋯", async ({ page }) => {
+    const top = await header(page, 500);
+    // D11: today the title is squeezed to a letter or two.
+    const crumb = (await top.locator(".ocdg-crumb").boundingBox())!;
+    expect(crumb.width).toBeGreaterThanOrEqual(128 - 0.5);
+    await expect(top).toHaveAttribute("data-fold", "tiny");
+    const tb = (await top.boundingBox())!;
+    const boxes = await top.locator(":scope > button:visible, :scope > ul, :scope > nav").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON() as { x: number; y: number; width: number; height: number }));
+    for (let i = 0; i < boxes.length; i++) {
+      expect(boxes[i].x + boxes[i].width).toBeLessThanOrEqual(tb.x + tb.width + 0.5);
+      for (let j = i + 1; j < boxes.length; j++) expect(overlap(boxes[i], boxes[j]), `controls ${i} and ${j} overlap`).toBe(false);
+    }
+    await expect(top.getByRole("button", { name: "Outline" })).toHaveCount(0);
+    await top.getByRole("button", { name: "Board options" }).click();
+    const menu = page.getByRole("menu", { name: "Board options" });
+    await expect(menu.getByRole("menuitem", { name: /^Commands/ })).toBeVisible();
+    await menu.getByRole("menuitem", { name: /^Auto-layout/ }).click();
+    await expect(page.getByRole("dialog", { name: "Auto-layout" })).toBeVisible();
+  });
+
+  test("1280 px: Commands with its ⌘K chip, Outline and the document crumb", async ({ page }) => {
+    const top = await header(page, 1280);
+    await expect(top).toHaveAttribute("data-fold", "wide");
+    await expect(top.locator(".ocdg-cmdk")).toContainText("⌘K");
+    await expect(top.getByRole("button", { name: "Outline" })).toBeVisible();
+  });
+});
+
 test.describe("Quick-connect (decision 10)", () => {
   test("hover previews; a click adds a connected rectangle on that side and takes typing", async ({ page }) => {
     const board = await openDemo(page, srv.url);
