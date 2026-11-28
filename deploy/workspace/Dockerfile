@@ -19,8 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends make && rm -rf 
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked -p oc-workspace --bin opencanvas-workspace \
- && cp target/release/opencanvas-workspace /opencanvas-workspace \
- && strip /opencanvas-workspace
+ && cp target/release/opencanvas-workspace /opencanvas-workspace
 
 FROM node:24-slim AS web
 WORKDIR /src/web

@@ -6,7 +6,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import {
-  Bell, ChevronDown, ChevronRight, ChevronsUpDown, Clock, Folder, FolderPlus, Home, LayoutGrid, LayoutTemplate, List, Lock, LogOut,
+  Bell, ChevronDown, ChevronRight, ChevronsUpDown, CircleCheck, X, Clock, Folder, FolderPlus, Home, LayoutGrid, LayoutTemplate, List, Lock, LogOut,
   Menu, Plus, Search, Settings2, Star, Trash2, Upload, User, Users,
 } from "lucide-react";
 import { ago, api, TYPES, type Card, type FileType, type Me, type Space } from "./api";
@@ -487,6 +487,7 @@ export function Browse({ path }: { path: string }) {
         </button>
       </div>
       <div className="mn-b">
+        {path === "/" && (me.role === "owner" || me.role === "admin") && <Checklist />}
         {path === "/" && (
           <>
             <div className="mn-h" style={{ marginBottom: ".625rem" }}>
@@ -576,6 +577,45 @@ export function Browse({ path }: { path: string }) {
         )}
       </div>
     </>
+  );
+}
+
+/** The setup checklist for admins (1c, 3a), until each item is done or it is dismissed. */
+function Checklist() {
+  const [c, setC] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    api.get<Record<string, boolean>>("/admin/checklist").then(setC, () => {});
+  }, []);
+  if (!c || c.dismissed) return null;
+  const items: [string, string, string][] = [
+    ["account", "Create your account", "/"],
+    ["invite", "Invite people", "/admin/members"],
+    ["signIn", "Choose sign-in rules", "/admin/settings"],
+    ["email", "Set up e-mail (optional)", "/admin/settings"],
+    ["backup", "Set up backups", "/admin/settings"],
+  ];
+  const done = items.filter(([k]) => c[k]).length;
+  if (done === items.length) return null;
+  return (
+    <div className="chkl" role="region" aria-label="Finish setting up">
+      <span style={{ display: "flex", flexDirection: "column", gap: ".125rem" }}>
+        <b>Finish setting up</b>
+        <span className="pr">
+          {done} of {items.length} done
+        </span>
+      </span>
+      <span className="its">
+        {items.map(([k, label, to]) => (
+          <button key={k} className={`chip ${c[k] ? "dn" : ""}`} onClick={() => !c[k] && go(to)} disabled={c[k]}>
+            {c[k] ? <CircleCheck size={14} /> : <ChevronRight size={14} />}
+            {label}
+          </button>
+        ))}
+      </span>
+      <button className="btn ic" aria-label="Dismiss checklist" onClick={() => api.post("/admin/checklist/dismiss").then(() => setC({ ...c, dismissed: true }))}>
+        <X size={16} />
+      </button>
+    </div>
   );
 }
 

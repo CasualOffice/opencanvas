@@ -1075,3 +1075,116 @@ async fn sample_content_and_routes_stay_in_their_lane() {
         assert!(!oc_workspace::owns_path(p), "{p}");
     }
 }
+
+#[tokio::test]
+async fn setup_checklist_smtp_settings_and_backups() {
+    let t = T::new().await;
+    let owner = t.setup().await;
+    // The Home checklist (1c): the account is made, the rest is to do.
+    let c = t.get("/api/ws/admin/checklist", &owner).await;
+    assert_eq!(c.status, StatusCode::OK, "{:?}", c.json);
+    assert_eq!(c.json["account"], true);
+    assert_eq!(c.json["invite"], false);
+    assert_eq!(c.json["email"], false);
+    assert_eq!(c.json["backup"], false);
+    assert_eq!(c.json["dismissed"], false);
+    t.member(&owner, "Lena Park", "lena@acme.example", "member")
+        .await;
+    // E-mail settings: kept, the password never comes back, bad values are refused.
+    let mut s = t.get("/api/ws/admin/settings", &owner).await.json["settings"].clone();
+    s["smtp"] = json!({"enabled": true, "host": "smtp.acme.example", "port": 587, "security": "starttls", "username": "canvas", "password": "secret-pass", "from": "Acme Canvas <canvas@acme.example>"});
+    assert_eq!(
+        t.put("/api/ws/admin/settings", &owner, s.clone())
+            .await
+            .status,
+        StatusCode::OK
+    );
+    let back = t.get("/api/ws/admin/settings", &owner).await;
+    assert_eq!(back.json["settings"]["smtp"]["host"], "smtp.acme.example");
+    assert_eq!(
+        back.json["settings"]["smtp"]["password"], "",
+        "the password is write-only"
+    );
+    assert_eq!(back.json["settings"]["smtp"]["hasPassword"], true);
+    // Saving again without the password keeps it.
+    assert_eq!(
+        t.put(
+            "/api/ws/admin/settings",
+            &owner,
+            back.json["settings"].clone()
+        )
+        .await
+        .status,
+        StatusCode::OK
+    );
+    assert_eq!(
+        t.get("/api/ws/admin/settings", &owner).await.json["settings"]["smtp"]["hasPassword"],
+        true
+    );
+    let mut bad = s.clone();
+    bad["smtp"]["port"] = json!(0);
+    assert_eq!(
+        t.put("/api/ws/admin/settings", &owner, bad).await.status,
+        StatusCode::BAD_REQUEST
+    );
+    // Branding: accent colour and the sign-in message, public for the sign-in page.
+    let mut b = t.get("/api/ws/admin/settings", &owner).await.json["settings"].clone();
+    b["accent"] = json!("#0e9a78");
+    b["signInMessage"] = json!("Welcome to Acme's canvases.");
+    assert_eq!(
+        t.put("/api/ws/admin/settings", &owner, b).await.status,
+        StatusCode::OK
+    );
+    let public = t
+        .req("GET", "/api/ws/branding", None, None, "10.0.0.1:1")
+        .await;
+    assert_eq!(public.json["accent"], "#0e9a78");
+    assert_eq!(public.json["signInMessage"], "Welcome to Acme's canvases.");
+    assert_eq!(public.json["orgName"], "Acme");
+    // Back up now: a consistent database copy and the files, listed afterwards.
+    let r = t.post("/api/ws/admin/backups", &owner, json!({})).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.json);
+    let list = t.get("/api/ws/admin/backups", &owner).await;
+    let first = &list.json["backups"][0];
+    assert!(first["bytes"].as_i64().unwrap() > 0, "{:?}", list.json);
+    let dir =
+        t.ws.cfg
+            .data_dir
+            .join("backups")
+            .join(first["name"].as_str().unwrap());
+    assert!(dir.join("workspace.db").exists());
+    let c = t.get("/api/ws/admin/checklist", &owner).await;
+    assert_eq!(
+        (
+            c.json["invite"].as_bool(),
+            c.json["email"].as_bool(),
+            c.json["backup"].as_bool()
+        ),
+        (Some(true), Some(true), Some(true))
+    );
+    // Dismissed for good.
+    assert_eq!(
+        t.post("/api/ws/admin/checklist/dismiss", &owner, json!({}))
+            .await
+            .status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        t.get("/api/ws/admin/checklist", &owner).await.json["dismissed"],
+        true
+    );
+    // Members can't see any of it.
+    let (tom, _) = t
+        .member(&owner, "Tom Becker", "tom@acme.example", "member")
+        .await;
+    assert_eq!(
+        t.get("/api/ws/admin/checklist", &tom).await.status,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        t.post("/api/ws/admin/backups", &tom, json!({}))
+            .await
+            .status,
+        StatusCode::FORBIDDEN
+    );
+}

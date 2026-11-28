@@ -9,6 +9,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ### Added
 
+- OpenCanvas Workspace settings: Branding (accent colour, sign-in page message), E-mail (SMTP settings, password
+  write-only), Backups ("Back up now": a consistent database copy and every file in the data volume), and the admins' setup
+  checklist on Home. CI builds the Workspace image and records its size, start time and memory at rest
+  (`scripts/workspace/image-smoke.sh`).
 - OpenCanvas Workspace passkeys (WS-06): sign in with a passkey (also from the e-mail field's autofill), create an account
   from an invite with a passkey only, and add or remove passkeys on your page. ES256 keys; challenges are single use and
   expire after 5 minutes.

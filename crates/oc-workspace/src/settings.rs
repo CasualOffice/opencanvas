@@ -53,6 +53,37 @@ impl Default for History {
     }
 }
 
+/// Outgoing e-mail (docs/40 §4.9): optional; invites and resets are links without it.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Smtp {
+    pub enabled: bool,
+    pub host: String,
+    pub port: u32,
+    /// starttls | tls | none
+    pub security: String,
+    pub username: String,
+    /// Write-only: answered as "" with `hasPassword`.
+    pub password: String,
+    pub has_password: bool,
+    pub from: String,
+}
+
+impl Default for Smtp {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            host: String::new(),
+            port: 587,
+            security: "starttls".into(),
+            username: String::new(),
+            password: String::new(),
+            has_password: false,
+            from: String::new(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Settings {
@@ -67,6 +98,7 @@ pub struct Settings {
     pub members_create_workspaces: bool,
     pub accent: String,
     pub sign_in_message: String,
+    pub smtp: Smtp,
 }
 
 impl Default for Settings {
@@ -81,6 +113,7 @@ impl Default for Settings {
             members_create_workspaces: true,
             accent: "#2a5ad7".into(),
             sign_in_message: String::new(),
+            smtp: Smtp::default(),
         }
     }
 }
@@ -148,6 +181,27 @@ impl Settings {
             && !(self.public_url.starts_with("http://") || self.public_url.starts_with("https://"))
         {
             return Err("The public address starts with http:// or https://.");
+        }
+        let hex = |c: &str| {
+            c.len() == 7 && c.starts_with('#') && c[1..].chars().all(|x| x.is_ascii_hexdigit())
+        };
+        if !hex(&self.accent) {
+            return Err("The accent colour is like #2a5ad7.");
+        }
+        if self.sign_in_message.chars().count() > 280 {
+            return Err("The sign-in message is at most 280 characters.");
+        }
+        let m = &self.smtp;
+        if !(1..=65_535).contains(&m.port)
+            || !matches!(m.security.as_str(), "starttls" | "tls" | "none")
+        {
+            return Err("Check the e-mail server's port and security.");
+        }
+        if m.enabled && (m.host.trim().is_empty() || !m.from.contains('@')) {
+            return Err("E-mail needs a server and a From address.");
+        }
+        if m.host.chars().any(|c| c.is_whitespace() || c == '/') {
+            return Err("The e-mail server is a host name, like smtp.example.com.");
         }
         Ok(())
     }

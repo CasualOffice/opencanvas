@@ -4,7 +4,7 @@
 // First-run setup (1a), sign in (2a), sign up from an invite (2b), password reset, and the
 // page a public-link visitor opens.
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Archive, Check, ChevronRight, Fingerprint, KeyRound, LogIn, UserPlus } from "lucide-react";
 import { addPasskey, deviceName, passkeysSupported, signInWithPasskey } from "./passkey";
 import { api, ApiError } from "./api";
@@ -191,22 +191,36 @@ export function Setup({ codeRequired, publicUrl, onDone }: { codeRequired: boole
 }
 
 export function SignIn({ onDone }: { onDone: () => void }) {
+  const [brand, setBrand] = useState<{ orgName: string; accent: string; signInMessage: string } | null>(null);
+  useEffect(() => {
+    api.get<NonNullable<typeof brand>>("/branding").then((b) => {
+      setBrand(b);
+      document.documentElement.style.setProperty("--accent", b.accent);
+    }, () => {});
+  }, []);
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   const [forgot, setForgot] = useState(false);
+  const conditional = useRef<AbortController | null>(null);
+  const done = useRef(onDone);
+  done.current = onDone;
   // Conditional UI: the browser offers saved passkeys in the e-mail field's autofill.
   useEffect(() => {
     if (!passkeysSupported()) return;
     const ac = new AbortController();
+    conditional.current = ac;
     (PublicKeyCredential as unknown as { isConditionalMediationAvailable?: () => Promise<boolean> }).isConditionalMediationAvailable?.().then((ok) => {
-      if (ok) signInWithPasskey(true, ac.signal).then(onDone, () => {});
+      if (ok) signInWithPasskey(true, ac.signal).then(() => done.current(), () => {});
     });
     return () => ac.abort();
-  }, [onDone]);
+  }, []);
   const passkey = async () => {
     setErr("");
     try {
+      // One WebAuthn request at a time: the pending autofill request steps aside.
+      conditional.current?.abort();
+      await new Promise((r) => setTimeout(r, 0));
       await signInWithPasskey();
       onDone();
     } catch (x) {
@@ -226,9 +240,9 @@ export function SignIn({ onDone }: { onDone: () => void }) {
   return (
     <div className="auth">
       <form className="auth-c" onSubmit={submit}>
-        <Brand />
-        <h3>Sign in</h3>
-        <p>Welcome back. Use the passkey on this device, or your e-mail and password.</p>
+        <Brand org={brand?.orgName} />
+        <h3>Sign in{brand ? ` to ${brand.orgName}` : ""}</h3>
+        <p>{brand?.signInMessage || "Welcome back. Use the passkey on this device, or your e-mail and password."}</p>
         {passkeysSupported() && (
           <>
             <button type="button" className="btn pri lg full" onClick={passkey}>

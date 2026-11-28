@@ -623,6 +623,53 @@ interface Settings {
   membersCreateWorkspaces: boolean;
   accent: string;
   signInMessage: string;
+  smtp: { enabled: boolean; host: string; port: number; security: string; username: string; password: string; hasPassword: boolean; from: string };
+}
+
+function Backups() {
+  const toast = useToast();
+  const [list, setList] = useState<{ backups: { name: string; bytes: number }[]; dir: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => api.get<NonNullable<typeof list>>("/admin/backups").then(setList, () => {}), []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  const now = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post<{ name: string; bytes: number }>("/admin/backups");
+      await load();
+      toast(`Backup finished · ${(r.bytes / 1e6).toFixed(1)} MB`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <h3>Backups</h3>
+      <p className="hint">A consistent copy of the database and every file, kept in the data volume ({list?.dir ?? "backups/"}). Copy it somewhere safe, with the volume's secrets folder.</p>
+      <div className="sec">
+        <div className="sec-h">
+          {list?.backups.length ? `Last backup: ${list.backups[0]!.name}` : "No backup yet"}
+          <span className="sp" />
+          <button className="btn pri" onClick={now} disabled={busy}>
+            {busy ? "Backing up…" : "Back up now"}
+          </button>
+        </div>
+        {list?.backups.map((b) => (
+          <div className="sec-r" key={b.name}>
+            <span className="m">
+              <b>{b.name}</b>
+              <small>{(b.bytes / 1e6).toFixed(1)} MB</small>
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="hint">Scheduled backups, S3 targets and restoring with <code>opencanvas-workspace restore</code> come next (WS-20). The secrets folder is not in these copies yet.</p>
+    </>
+  );
 }
 
 export function SettingsPage() {
@@ -668,8 +715,11 @@ export function SettingsPage() {
   const pages: [string, string][] = [
     ["general", "General"],
     ["sharing", "Sharing and links"],
+    ["brand", "Branding"],
     ["signin", "Sign-in"],
+    ["email", "E-mail"],
     ["storage", "Storage and retention"],
+    ["backups", "Backups"],
     ["about", "About"],
   ];
   return (
@@ -761,6 +811,70 @@ export function SettingsPage() {
               </div>
             </>
           )}
+          {pg === "brand" && (
+            <>
+              <h3>Branding</h3>
+              <p className="hint">How the sign-in page and the app look to your people. “OpenCanvas Workspace by CasualOffice” stays in the footer.</p>
+              <div className="sec">
+                <R b="Accent colour" sub="Buttons, links and focus rings.">
+                  <span className="swatch">
+                    {["#2a5ad7", "#7a45f0", "#0e9a78", "#e5602a", "#d63f78", "#18181b"].map((c) => (
+                      <button key={c} style={{ background: c, color: c }} aria-label={`Accent ${c}`} aria-pressed={s.accent === c} onClick={() => save({ ...s, accent: c })} />
+                    ))}
+                  </span>
+                </R>
+                <R b="Sign-in page message" sub="A short line under the title, up to 280 characters.">
+                  <div className="inp">
+                    <input defaultValue={s.signInMessage} aria-label="Sign-in page message" onBlur={(e) => e.target.value !== s.signInMessage && save({ ...s, signInMessage: e.target.value })} />
+                  </div>
+                </R>
+              </div>
+            </>
+          )}
+          {pg === "email" && (
+            <>
+              <h3>E-mail</h3>
+              <p className="hint">Optional. Without e-mail, invites and password resets are links that admins copy and send themselves.</p>
+              <div className="sec">
+                <R b="Send e-mail" sub="Invites, mentions and password resets.">
+                  <Sw on={s.smtp.enabled} label="Send e-mail" onChange={(v) => save({ ...s, smtp: { ...s.smtp, enabled: v } })} />
+                </R>
+                {(
+                  [
+                    ["host", "SMTP server", "smtp.example.com"],
+                    ["port", "Port", "587"],
+                    ["username", "User name", ""],
+                    ["password", s.smtp.hasPassword ? "Password (set; type to change)" : "Password", ""],
+                    ["from", "From", "Canvas <canvas@example.com>"],
+                  ] as const
+                ).map(([k, label, ph]) => (
+                  <R b={label} sub="" key={k}>
+                    <div className="inp">
+                      <input
+                        type={k === "password" ? "password" : k === "port" ? "number" : "text"}
+                        defaultValue={k === "password" ? "" : String(s.smtp[k])}
+                        placeholder={ph}
+                        aria-label={label}
+                        onBlur={(e) => {
+                          const v = k === "port" ? Number(e.target.value) : e.target.value;
+                          if (k === "password" ? v !== "" : v !== s.smtp[k]) save({ ...s, smtp: { ...s.smtp, [k]: v } });
+                        }}
+                      />
+                    </div>
+                  </R>
+                ))}
+                <R b="Security" sub="STARTTLS on 587 is the usual choice.">
+                  <select className="rsel" aria-label="Security" value={s.smtp.security} onChange={(e) => save({ ...s, smtp: { ...s.smtp, security: e.target.value } })}>
+                    <option value="starttls">STARTTLS</option>
+                    <option value="tls">TLS</option>
+                    <option value="none">None</option>
+                  </select>
+                </R>
+              </div>
+              <p className="hint">Sending is the next step (WS-08): the settings are kept now, and invites stay copyable links.</p>
+            </>
+          )}
+          {pg === "backups" && <Backups />}
           {pg === "storage" && (
             <>
               <h3>Storage and retention</h3>

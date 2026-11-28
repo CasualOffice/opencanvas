@@ -33,10 +33,16 @@ pub fn router() -> Router<Ws> {
             put(add_team_member).delete(remove_team_member),
         )
         .route("/admin/about", get(about))
+        .route("/admin/checklist", get(checklist))
+        .route("/admin/checklist/dismiss", post(dismiss_checklist))
+        .route("/admin/backups", get(list_backups).post(backup_now))
+        .route("/branding", get(branding))
 }
 
 async fn get_settings(State(ws): State<Ws>, Admin(_): Admin) -> ApiResult<Json<Value>> {
-    let (s, locked) = Settings::load(&ws.db, &ws.cfg).await?;
+    let (mut s, locked) = Settings::load(&ws.db, &ws.cfg).await?;
+    s.smtp.has_password = !s.smtp.password.is_empty();
+    s.smtp.password = String::new();
     Ok(Json(json!({"settings": s, "locked": locked})))
 }
 
@@ -58,6 +64,13 @@ async fn put_settings(
         s.public_links.max_role = cur.public_links.max_role.clone();
     }
     s.public_url = s.public_url.trim().trim_end_matches('/').to_string();
+    // The SMTP password is write-only: an empty one keeps what is stored.
+    if s.smtp.password.is_empty() {
+        s.smtp.password = cur.smtp.password.clone();
+    }
+    s.smtp.has_password = false;
+    s.smtp.host = s.smtp.host.trim().to_string();
+    s.sign_in_message = clean_name(&s.sign_in_message, 280);
     s.org_name = clean_name(&s.org_name, 80);
     s.signup_domains = s
         .signup_domains
@@ -370,4 +383,151 @@ async fn about(State(ws): State<Ws>, Admin(_): Admin) -> ApiResult<Json<Value>> 
         "database": if ws.db.sqlite { "SQLite" } else { "MySQL / MariaDB" }, "storage": "Local disk",
         "canvases": canvases, "users": users, "versionBytes": bytes.unwrap_or(0),
     })))
+}
+
+/// The sign-in page's branding (public: shown before anyone signs in).
+async fn branding(State(ws): State<Ws>) -> ApiResult<Json<Value>> {
+    let (s, _) = Settings::load(&ws.db, &ws.cfg).await?;
+    Ok(Json(
+        json!({"orgName": s.org_name, "accent": s.accent, "signInMessage": s.sign_in_message}),
+    ))
+}
+
+/// The Home setup checklist (prototype 1c, 3a): what an admin still has to do.
+async fn checklist(State(ws): State<Ws>, Admin(_): Admin) -> ApiResult<Json<Value>> {
+    let (s, _) = Settings::load(&ws.db, &ws.cfg).await?;
+    let users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
+        .fetch_one(&ws.db.pool)
+        .await?;
+    let invites: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tokens WHERE purpose = 'invite'")
+        .fetch_one(&ws.db.pool)
+        .await?;
+    let rules = ws.db.meta("checklist_signin").await?.is_some()
+        || s.public_links.allowed
+        || !s.signup_domains.is_empty();
+    Ok(Json(json!({
+        "account": true,
+        "invite": users > 1 || invites > 0,
+        "signIn": rules,
+        "email": s.smtp.enabled,
+        "backup": !backup_dirs(&ws).is_empty(),
+        "dismissed": ws.db.meta("checklist_dismissed").await?.is_some(),
+    })))
+}
+
+async fn dismiss_checklist(State(ws): State<Ws>, Admin(_): Admin) -> ApiResult<StatusCode> {
+    ws.db.set_meta("checklist_dismissed", "1").await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn dir_bytes(p: &std::path::Path) -> u64 {
+    std::fs::read_dir(p)
+        .map(|it| {
+            it.flatten()
+                .map(|e| match e.file_type() {
+                    Ok(t) if t.is_dir() => dir_bytes(&e.path()),
+                    Ok(_) => e.metadata().map(|m| m.len()).unwrap_or(0),
+                    Err(_) => 0,
+                })
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for e in std::fs::read_dir(from)? {
+        let e = e?;
+        let t = e.file_type()?;
+        if t.is_dir() {
+            copy_dir(&e.path(), &to.join(e.file_name()))?;
+        } else if t.is_file() && !e.file_name().to_string_lossy().contains(".tmp-") {
+            std::fs::copy(e.path(), to.join(e.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
+/// Backups in `<data>/backups`, newest first: (name, bytes).
+fn backup_dirs(ws: &Ws) -> Vec<(String, u64)> {
+    let root = ws.cfg.data_dir.join("backups");
+    let mut v: Vec<(String, u64)> = std::fs::read_dir(&root)
+        .map(|it| {
+            it.flatten()
+                .filter(|e| e.path().join("manifest.json").exists())
+                .map(|e| {
+                    (
+                        e.file_name().to_string_lossy().into_owned(),
+                        dir_bytes(&e.path()),
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    v.sort_by(|a, b| b.0.cmp(&a.0));
+    v
+}
+
+async fn list_backups(State(ws): State<Ws>, Admin(_): Admin) -> ApiResult<Json<Value>> {
+    let list: Vec<Value> = backup_dirs(&ws)
+        .into_iter()
+        .map(|(n, b)| json!({"name": n, "bytes": b}))
+        .collect();
+    Ok(Json(
+        json!({"backups": list, "dir": ws.cfg.data_dir.join("backups").display().to_string()}),
+    ))
+}
+
+/// "Back up now" (WS-20, first step): a consistent copy of the database (SQLite `VACUUM INTO`)
+/// and every file, in `<data>/backups/<time>`. The generated secrets are not copied (WS-20 adds
+/// them encrypted with a passphrase); MySQL deployments use their database's own dumps.
+async fn backup_now(State(ws): State<Ws>, Admin(me): Admin) -> ApiResult<Json<Value>> {
+    if !ws.db.sqlite {
+        return Err(ApiError::new(
+            StatusCode::NOT_IMPLEMENTED,
+            "MYSQL",
+            "With MySQL or MariaDB, back up the database with its own tools (mysqldump) and the data volume's files/ folder.",
+        ));
+    }
+    let now = now_ms();
+    let name = format!(
+        "{}-{}",
+        crate::util::rfc3339(now)
+            .replace([':', '-'], "")
+            .replace('T', "-")
+            .trim_end_matches('Z'),
+        crate::util::token(3)
+    );
+    let dir = ws.cfg.data_dir.join("backups").join(&name);
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(anyhow::Error::from)?;
+    let db_path = dir.join("workspace.db");
+    let quoted = db_path.display().to_string().replace('\'', "''");
+    sqlx::query(sqlx::AssertSqlSafe(format!("VACUUM INTO '{quoted}'")))
+        .execute(&ws.db.pool)
+        .await?;
+    let (files, to) = (ws.cfg.files_dir(), dir.join("files"));
+    tokio::task::spawn_blocking(move || {
+        if files.exists() {
+            copy_dir(&files, &to)
+        } else {
+            Ok(())
+        }
+    })
+    .await
+    .map_err(anyhow::Error::from)?
+    .map_err(anyhow::Error::from)?;
+    let manifest = json!({"format": "opencanvas-workspace-backup", "version": env!("CARGO_PKG_VERSION"), "createdAt": now, "by": me.id, "database": "sqlite", "secrets": false});
+    tokio::fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_vec_pretty(&manifest).map_err(anyhow::Error::from)?,
+    )
+    .await
+    .map_err(anyhow::Error::from)?;
+    let bytes = dir_bytes(&dir);
+    tracing::info!(backup = %name, bytes, "backup written");
+    Ok(Json(
+        json!({"name": name, "bytes": bytes, "secretsIncluded": false}),
+    ))
 }

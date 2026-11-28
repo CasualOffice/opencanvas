@@ -41,6 +41,10 @@ function Shell({ me, path, onSignedOut }: { me: Me; path: string; onSignedOut: (
   useEffect(() => {
     reload();
   }, [reload, path]);
+  // Branding (Settings › Branding): the organisation's accent colour.
+  useEffect(() => {
+    if (/^#[0-9a-f]{6}$/i.test(meNow.org.accent)) document.documentElement.style.setProperty("--accent", meNow.org.accent);
+  }, [meNow.org.accent]);
   const openNew = useCallback(
     (where?: { workspaceId: string; folderId?: string | null }) => {
       const p = where ?? defaultPlace(home.spaces, path);
