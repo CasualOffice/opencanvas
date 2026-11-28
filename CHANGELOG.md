@@ -7,6 +7,14 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-28
+
+Partial sync completed: spreadsheets load as parts, the session answers before a large file has
+opened, a clean close keeps a large canvas split for a fast reopen (50 MB reopen about 2 s), the
+editor renders a canvas once on open, and the client-id rule refuses only foreign clocks. Also the
+v0.5 links and backlinks preview (off unless the host enables links) and whiteboard bug fixes.
+No configuration changes; migration 0014 (link edges) runs at start-up.
+
 ### Fixed
 
 - Whiteboard: a sticky note or text placed with the mouse takes typing at once. Before, its editor
@@ -767,7 +775,8 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/CasualOffice/opencanvas/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/CasualOffice/opencanvas/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/CasualOffice/opencanvas/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/CasualOffice/opencanvas/compare/v0.2.1...v0.3.0

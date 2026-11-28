@@ -1,6 +1,6 @@
 # OpenCanvas documentation (full text)
 
-Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.4.1, released 2026-11-28; last updated 2026-11-28.
+Source: https://github.com/CasualOffice/opencanvas. Generated from the repository's README.md and docs/*.md. OpenCanvas 0.4.2, released 2026-11-28; last updated 2026-11-28.
 
 
 # Documentation
@@ -9,7 +9,7 @@ URL: https://canvas.casualoffice.org/docs/index.html
 
 ## Documentation
 
-How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.4.1, released 2026-11-28. They describe what is built and say so where something is planned. The roadmap has the full picture.
+How to run OpenCanvas, embed it in your app, and operate it. Most pages are generated from the repository's own documents, so they say what the code does today. Press / anywhere to search. These guides cover OpenCanvas 0.4.2, released 2026-11-28. They describe what is built and say so where something is planned. The roadmap has the full picture.
 
 ## Start
 
@@ -146,7 +146,7 @@ docker run -p 8080:8080 -v oc-data:/data \
   -v "$PWD/hosts.toml:/etc/opencanvas/hosts.toml:ro" \
   -e OC_PUBLIC_URL=https://canvas.example.com \
   -e OC_KEK=$(openssl rand -base64 32) \
-  ghcr.io/casualoffice/opencanvas:0.4.1
+  ghcr.io/casualoffice/opencanvas:0.4.2
 ```
 
 From source, with the sample host (Rust stable, Node 24 and pnpm 9):
@@ -802,7 +802,7 @@ OpenCanvas is an open-source, real-time collaborative canvas that other applicat
 
 ## Can I use it in production today?
 
-OpenCanvas 0.4.1 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.4.1] - 2026-11-28” The limits are in the release notes and on the home page .
+OpenCanvas 0.4.2 is an early release with best-effort support and no production SLA. You can run it, but read the known limitations before you rely on it: durability depends on the persistence mode you choose, and scale-out across several machines has not been demonstrated yet. Source: CHANGELOG.md, “## [0.4.2] - 2026-11-28” The limits are in the release notes and on the home page .
 
 ## Is OpenCanvas free?
 
@@ -879,7 +879,7 @@ OpenCanvas, by CasualOffice, is the open-source collaborative workspace engine f
 
 ## At a glance
 
-Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.4.1, released 2026-11-28 Source: CHANGELOG.md, “## [0.4.1] - 2026-11-28” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud with Talk, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
+Fact Value Source Name OpenCanvas, made by CasualOffice Source: NOTICE, “Copyright 2026 CasualOffice” Current release 0.4.2, released 2026-11-28 Source: CHANGELOG.md, “## [0.4.2] - 2026-11-28” First release 0.1.0-alpha.1, released 2026-11-23 Source: CHANGELOG.md, “## [0.1.0-alpha.1] - 2026-11-23” Licence Apache License 2.0; keep the NOTICE file when you redistribute it Source: NOTICE, “Licensed under the Apache License, Version 2.0 (LICENSE).” Support Best-effort, with no production SLA Source: README.md, “Support is best-effort, with no production SLA.” Who owns the data The host application: users, permissions and files. OpenCanvas keeps only a transient room log and a save outbox. Source: README.md, “it keeps only a transient room log and a save outbox.” Server Rust, on tokio and axum Source: docs/03, “Rust, tokio, axum” Editor Tiptap (ProseMirror) with y-prosemirror, in the browser Source: docs/03, “Tiptap (ProseMirror) + y-prosemirror” Real-time merge A CRDT (Yjs); roles are enforced on the server Source: README.md, “Edits merge in real time with a CRDT (Yjs)” Storage SQLite by default; MySQL 8.4 or MariaDB 11.4 when DATABASE_URL is set Source: README.md, “SQLite by default. MySQL 8.4 and MariaDB 11.4 work when” Cluster Several nodes on MySQL or MariaDB with Redis Source: README.md, “One container with SQLite to start; MySQL, MariaDB and Redis when you need a cluster.” Launch JWT launch tokens signed by the host (HS256, RS256, EdDSA, JWKS), or WOPI Source: README.md, “HS256, RS256, EdDSA and JWKS launch tokens” Integrations Jitsi Meet, Nextcloud with Talk, Mattermost and Element / Matrix Source: README.md, “Host integrations for WOPI files, channel canvases and room widgets.” API REST under /api/v1 , described by an OpenAPI 3.1 document Source: docs/32, “`/api/v1` with OpenAPI 3.1 at `/api/v1/openapi.json`” Exports Markdown, HTML, JSON, the native .ocanvas file, Word, and PDF with the optional Gotenberg sidecar Source: docs/13, “Exports (`md`, `html`, `json`, `ocanvas`, `docx`, `pdf`)” Templates 40 templates in 9 categories Source: README.md, “40 templates in 9 categories” Sizing Up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode Source: docs/22, “In short: up to 1,000 concurrent users on 1 vCPU and 512 MB; up to 5,000 on 2 vCPU and 2 GB; beyond 5,000, cluster mode.” One canvas 550 people (the room cap), a fifth of them typing in bursts, on 1.8 cores Source: docs/22, “at 550 the server sends 345,255 frames/s and 65 MB/s, and uses 1.8 cores” Measured on An Apple M4 laptop, 10 cores, 16 GB RAM Source: docs/22, “Apple M4, 10 cores, 16 GB RAM” AI Experimental and off by default; models from the Claude Platform or an OpenAI-compatible server, called only by the OpenCanvas server Source: README.md, “Claude Platform or an OpenAI-compatible server (OpenAI, vLLM, Ollama, llama.cpp)”
 
 ## Where to check
 
