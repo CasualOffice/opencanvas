@@ -148,16 +148,13 @@
 <section class="section-tight" id="limits" aria-labelledby="limits-h">
   <div class="wrap">
     <div class="limits reveal" data-testid="limits">
-      <h2 id="limits-h"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Alpha: what it is not yet</h2>
+      <h2 id="limits-h"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Early release: current limits</h2>
       <ul>
-        <li><strong>Early release, with no SLA.</strong> The current release has best-effort support and no production SLA. The <a href="docs/release-040.html">release notes</a> list every limit and the upgrade steps.</li>
-        <li>Most work is built and verified but still awaits the owner's review; the <a href="roadmap.html">roadmap</a> marks each item.</li>
-        <li><strong>Memory grows with the documents you keep open.</strong> While people type, a room's document takes many times its saved size in memory; memory is given back after rooms close. Size from the <a href="docs/capacity.html">sizing guide</a>.</li>
-        <li><strong>Durability depends on the mode.</strong> Without Redis the default keeps rooms in memory and dumps them every two seconds: after a crash, the latest edits come back only from clients that reconnect. Use <code>wal</code> mode, or a Redis WAL with append-only persistence, when every acknowledged edit must be on disk; see <a href="docs/operations.html">operations</a>.</li>
-        <li><strong>Single node first.</strong> Cluster mode passes the crash and chaos runs, but scale-out across machines has not been demonstrated. A single SQLite server with a thousand busy rooms of nonstop typing in <code>wal</code> mode still falls behind by over a second.</li>
-        <li>Only the import and export formats in the release notes are tested.</li>
-        <li>Link cards show the site's name until the safe link-preview fetcher is built; server-rendered preview for viewers is not built yet. The Helm chart is linted and rendered in CI but not yet installed in a real cluster.</li>
-        <li><strong>The assistant and MCP are experimental and off by default.</strong> They are phase 1 and await the owner's review. When an operator turns them on, canvas content is sent to the configured model server.</li>
+        <li><strong>No SLA.</strong> Support is best effort. The <a href="docs/release-040.html">release notes</a> list the limits and upgrade steps.</li>
+        <li><strong>Durability depends on the mode.</strong> Use <code>wal</code> mode or a Redis WAL when every acknowledged edit must be on disk; see <a href="docs/operations.html">operations</a>.</li>
+        <li><strong>Single node is the tested path.</strong> Cluster mode passes the crash and chaos drills; scale-out across machines is not yet demonstrated. Benchmarks so far ran on a laptop.</li>
+        <li><strong>Very large canvases open slower than our target.</strong> A 50 MB canvas shows its first screen in about 6 s (target 2 s), and spreadsheets do not load on demand yet.</li>
+        <li><strong>The assistant and MCP are experimental and off by default.</strong> When turned on, canvas content goes to the model server the operator configures.</li>
       </ul>
       <p>Every item is a row in the project's tracker, and the <a href="roadmap.html">roadmap</a> is generated from it.</p>
     </div>
