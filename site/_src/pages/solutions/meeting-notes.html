@@ -1,0 +1,50 @@
+<!--meta {"title": "Collaborative meeting notes", "seo_title": "Collaborative meeting notes", "description": "Shared meeting notes, tasks and whiteboards in Jitsi Meet, Nextcloud Talk, Mattermost channels and Element: open source, self-hosted, kept with your files.", "nav": ""} -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Use case</span>
+  <h1>Collaborative meeting notes, inside the tools you meet in</h1>
+  <p class="lede">Open one shared canvas from the call or the channel, write the agenda, decisions and action items together, sketch on a whiteboard, and track the tasks in a database. OpenCanvas plugs into Jitsi Meet, Nextcloud Talk, Mattermost channels and Element, all self-hosted.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}app/#demo">Try the live demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="{{root}}docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="{{root}}docs/index.html">Documentation</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2>Jitsi Meet</h2>
+  <p>One Prosody plugin and a few <code>.env</code> lines, with no Docker image or compose changes. Everyone in the meeting opens the same canvas from <strong>Shared document</strong>, the slot Etherpad uses. The canvas starts blank or from a template you choose, survives reloads and dropped connections, and is deleted when the meeting ends, so people export it (PDF, Word, Markdown or the native file) to keep it. Moderators edit; guests get the role you set. <a href="{{root}}docs/jitsi.html">Jitsi Meet guide</a>.</p>
+
+  <h2>Nextcloud and Nextcloud Talk</h2>
+  <p>The Nextcloud app lets people create <code>.ocanvas</code> files in Files and edit them together; Nextcloud keeps the files, shares, permissions and versions as the WOPI host. With Talk, a Canvas panel opens beside the chat or call, canvas cards appear in conversations, "Follow me" keeps everyone on the presenter's place, and each call can have a temporary meeting canvas that is saved into the moderator's Talk folder and shared with the conversation. <a href="{{root}}docs/nextcloud.html">Nextcloud guide</a>.</p>
+
+  <h2>Mattermost channels</h2>
+  <p>A plugin adds canvases to channels. <code>/canvas notes [title]</code> creates meeting notes that start with Agenda, Notes, Decisions and Action items, and posts a card in the channel. Canvases open in the right-hand panel, are stored in the Mattermost file store, and access follows the channel: someone who leaves loses access at once. <a href="{{root}}docs/mattermost.html">Mattermost guide</a>.</p>
+
+  <h2>Element and Matrix</h2>
+  <p>A room widget, like Etherpad or Jitsi in Element. Identity is checked with the person's homeserver, only room members can open the canvas, roles follow power levels, and leaving the room ends access. <a href="{{root}}docs/matrix.html">Element and Matrix guide</a>.</p>
+
+  <h2>Why notes in a canvas</h2>
+  <ul>
+    <li><strong>Action items that stay tracked.</strong> Turn the list into a database with owners, dates and a board view, in the same document.</li>
+    <li><strong>Draw while you talk.</strong> A whiteboard block for diagrams and sticky notes, beside the notes.</li>
+    <li><strong>A meeting profile.</strong> Hosts can offer a short, focused insert menu for meetings: text, headings, checklists, decisions, tables and dates.</li>
+    <li><strong>Your data stays put.</strong> OpenCanvas stores no documents; the host or nobody does.</li>
+  </ul>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  {{include:ships-table}}
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Do I need to change my Jitsi Docker setup?{{icon:chevron-down}}</summary><div data-answer><p>No. You add one Prosody plugin and a few environment lines; the Jitsi images and compose file stay as they are. Debian-package installs and multi-shard deployments have not been tested yet.</p></div></details>
+    <details><summary>Where are meeting notes stored?{{icon:chevron-down}}</summary><div data-answer><p>In the host: Nextcloud files, the Mattermost file store, or your own application. Jitsi and Element canvases are temporary and are deleted after the meeting or once everyone has left, so export what you want to keep.</p></div></details>
+    <details><summary>Are the integrations finished?{{icon:chevron-down}}</summary><div data-answer><p>They are alpha. Each one was tested end to end against a real server, and each guide lists what was not tested, such as mobile apps and some deployment types.</p></div></details>
+    <details><summary>Is it free?{{icon:chevron-down}}</summary><div data-answer><p>Yes. OpenCanvas and its integrations are open source under the Apache-2.0 licence. Support is best effort, with no production SLA.</p></div></details>
+  </div>
+</div></section>
+
+{{include:compare-footer}}

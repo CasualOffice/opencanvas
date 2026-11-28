@@ -1,0 +1,65 @@
+<!--meta {"title": "Notion alternative", "seo_title": "Open-source Notion alternative", "description": "OpenCanvas compared with Notion: an Apache-2.0 workspace engine you self-host and embed in your own app, with docs, databases, spreadsheets and whiteboards.", "nav": ""} -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Compare</span>
+  <h1>A self-hosted, open-source alternative to Notion</h1>
+  <p class="lede">Notion is a hosted workspace that people sign up for. OpenCanvas is an open-source engine that your application embeds: the same kind of block editor, databases and real-time editing, running on your servers, with your users and your files.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}app/#demo">Try the live demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="{{root}}docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="{{root}}docs/index.html">Documentation</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2>The short answer</h2>
+  <p>If your team wants a ready-made workspace to sign up for today, Notion is the more complete product. If you are building an application and want Notion-style pages, databases and live co-editing inside it, on infrastructure you control and under a permissive licence, that is what OpenCanvas is for.</p>
+
+  <h2>Where OpenCanvas fits better</h2>
+  <ul>
+    <li><strong>You run it.</strong> One Rust server in a container, with SQLite to start and MySQL or MariaDB with Redis for a cluster. Nothing leaves your infrastructure.</li>
+    <li><strong>Your application owns the data.</strong> Your app keeps the users, the permissions and the file; OpenCanvas edits it and saves it back. It never becomes the system of record.</li>
+    <li><strong>It embeds.</strong> An iframe or the <code>&lt;open-canvas&gt;</code> web component, launched with a token your backend signs, plus a REST API, webhooks and a Block SDK for your own blocks.</li>
+    <li><strong>One canvas holds more kinds of content.</strong> Text, databases, an Excel-style spreadsheet block with <code>.xlsx</code> import and export, linked charts, whiteboards and diagrams sit in the same document.</li>
+    <li><strong>Apache-2.0.</strong> Use it, change it and ship it in commercial or closed products; keep the NOTICE file when you redistribute it.</li>
+  </ul>
+
+  <h2>Where Notion is stronger</h2>
+  <ul>
+    <li><strong>It is a finished product.</strong> Sign-up, workspaces, sharing, a page tree, public pages and billing are all there. OpenCanvas has none of these on its own; your application provides them.</li>
+    <li><strong>Apps and reach.</strong> Notion has desktop and mobile apps and a large ecosystem of integrations and community templates. OpenCanvas runs in the browser, with a phone layout, and ships 40 templates.</li>
+    <li><strong>Maturity.</strong> Notion has been used by large teams for years. OpenCanvas is an early release with best-effort support and no production SLA.</li>
+    <li><strong>No operations.</strong> Notion runs it for you. With OpenCanvas you run and upgrade a server.</li>
+  </ul>
+
+  <h2>How they differ</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="How OpenCanvas and Notion differ">
+    <table>
+      <thead><tr><th scope="col">Question</th><th scope="col">OpenCanvas</th><th scope="col">Notion</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">What it is</th><td>An engine your application embeds</td><td>A hosted workspace product</td></tr>
+        <tr><th scope="row">Where it runs</th><td>Your servers (Docker, Helm)</td><td>Notion's cloud</td></tr>
+        <tr><th scope="row">Who stores documents</th><td>Your application, through callbacks or WOPI</td><td>Notion</td></tr>
+        <tr><th scope="row">Users and permissions</th><td>Your application's; roles enforced by the server</td><td>Notion accounts and workspaces</td></tr>
+        <tr><th scope="row">Source code</th><td>Open source, Apache-2.0</td><td>Proprietary</td></tr>
+        <tr><th scope="row">Moving content over</th><td>Markdown, HTML and CSV import when the host turns it on; no direct Notion import</td><td>Exports pages as Markdown or HTML and databases as CSV</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  {{include:ships-table}}
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Is OpenCanvas a drop-in replacement for Notion?{{icon:chevron-down}}</summary><div data-answer><p>No. OpenCanvas has no sign-up, workspace or page tree of its own. It is the editing engine: you embed it in an application that already has users and files, or in Nextcloud, Mattermost channels, Jitsi Meet or Element through the integrations.</p></div></details>
+    <details><summary>Can I import my Notion pages?{{icon:chevron-down}}</summary><div data-answer><p>Not directly. Notion can export pages as Markdown or HTML and databases as CSV, and OpenCanvas imports Markdown, HTML and CSV when the host turns import on. We have not tested Notion's exports specifically, so check the result on a few pages first.</p></div></details>
+    <details><summary>Does OpenCanvas have Notion-style databases?{{icon:chevron-down}}</summary><div data-answer><p>Yes: typed fields with table, board, calendar, gallery, Timeline and Workload views, plus formula, relation and rollup fields when the host turns them on. See the table above for what ships.</p></div></details>
+    <details><summary>Is it free?{{icon:chevron-down}}</summary><div data-answer><p>Yes. OpenCanvas is open source under the Apache-2.0 licence, free to self-host, modify and embed, including in commercial products. Support is best effort; there is no paid plan or production SLA.</p></div></details>
+  </div>
+</div></section>
+
+{{include:compare-footer}}

@@ -1,0 +1,64 @@
+<!--meta {"title": "Coda alternative", "seo_title": "Open-source Coda alternative", "description": "OpenCanvas compared with Coda: documents with databases, formulas, relations and a real spreadsheet, self-hosted under Apache-2.0 and embedded in your own app.", "nav": ""} -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Compare</span>
+  <h1>A self-hosted, open-source alternative to Coda</h1>
+  <p class="lede">Coda is a hosted doc that grows into an app, with tables, formulas and automations. OpenCanvas puts documents, databases with formulas and relations, and an Excel-style spreadsheet in one live canvas that you run yourself and embed in your own product.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}app/#demo">Try the live demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="{{root}}docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="{{root}}docs/index.html">Documentation</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2>The short answer</h2>
+  <p>If you want a hosted doc that non-developers turn into small apps, with buttons, a mature formula language and a catalogue of integrations, Coda does more today. If you need a document with databases and a real spreadsheet that runs on your servers, inside your product, under an open-source licence, OpenCanvas is the fit.</p>
+
+  <h2>Where OpenCanvas fits better</h2>
+  <ul>
+    <li><strong>A spreadsheet that is a spreadsheet.</strong> The Spreadsheet block is an Excel-style grid on opencalc's engine, with a formula bar, Excel keys, paste from Excel and <code>.xlsx</code> and <code>.ods</code> import and <code>.xlsx</code> export. Charts link to a range and update live.</li>
+    <li><strong>Databases with formulas, relations and rollups.</strong> Formula fields use spreadsheet syntax, and virtualized tables handle 100,000 rows. A database opens as a spreadsheet, and a range becomes a database.</li>
+    <li><strong>Planning views.</strong> Timeline (Gantt) with dependencies, milestones and the critical path, and Workload by person and week.</li>
+    <li><strong>Self-hosted and embeddable.</strong> Your application owns the users, the permissions and the file; OpenCanvas never stores documents.</li>
+    <li><strong>Extensible in code.</strong> A REST API with TypeScript and Rust clients, signed webhooks, and a Block SDK for your own sandboxed blocks.</li>
+  </ul>
+
+  <h2>Where Coda is stronger</h2>
+  <ul>
+    <li><strong>Doc-as-app building.</strong> Coda's buttons, controls and formula language let people build workflows without code. OpenCanvas has automation rules the host turns on, but no buttons or controls.</li>
+    <li><strong>Integrations.</strong> Coda's Packs connect to many outside services. OpenCanvas has a Block SDK and an API, and few third-party blocks yet.</li>
+    <li><strong>A finished product.</strong> Sign-up, sharing, publishing and apps are included. OpenCanvas relies on your application for those.</li>
+    <li><strong>Maturity.</strong> OpenCanvas is an early release with best-effort support and no production SLA.</li>
+  </ul>
+
+  <h2>How they differ</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="How OpenCanvas and Coda differ">
+    <table>
+      <thead><tr><th scope="col">Question</th><th scope="col">OpenCanvas</th><th scope="col">Coda</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">What it is</th><td>An engine your application embeds</td><td>A hosted doc and app-building product</td></tr>
+        <tr><th scope="row">Where it runs</th><td>Your servers (Docker, Helm)</td><td>Coda's cloud</td></tr>
+        <tr><th scope="row">Who stores documents</th><td>Your application</td><td>Coda</td></tr>
+        <tr><th scope="row">Spreadsheet files</th><td><code>.xlsx</code> and <code>.ods</code> import, <code>.xlsx</code> export, in a Spreadsheet block</td><td>Tables, with CSV import</td></tr>
+        <tr><th scope="row">Source code</th><td>Open source, Apache-2.0</td><td>Proprietary</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  {{include:ships-table}}
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Does OpenCanvas have formulas like Coda?{{icon:chevron-down}}</summary><div data-answer><p>It has two kinds: cell formulas in the Spreadsheet block, computed by the opencalc engine, and formula fields in databases, written in spreadsheet syntax, with relations and rollups. The host turns on adding formula, relation and rollup fields. There is no doc-wide formula language for buttons or controls.</p></div></details>
+    <details><summary>Can it automate work?{{icon:chevron-down}}</summary><div data-answer><p>Automation rules ship but are off until the host turns them on: triggers such as a row added, a field changed or a schedule, and actions such as setting a field, moving a row, commenting, notifying or calling a URL, with limits, run history and undo.</p></div></details>
+    <details><summary>Can I open Excel files?{{icon:chevron-down}}</summary><div data-answer><p>Yes, when the host allows the format: the Spreadsheet block imports xlsx and ods files with their formats, styles and column widths, and exports xlsx.</p></div></details>
+    <details><summary>Is it free?{{icon:chevron-down}}</summary><div data-answer><p>Yes. OpenCanvas is open source under the Apache-2.0 licence, free to self-host, modify and embed, including in commercial products. Support is best effort, with no production SLA.</p></div></details>
+  </div>
+</div></section>
+
+{{include:compare-footer}}

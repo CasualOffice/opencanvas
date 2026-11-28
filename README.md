@@ -5,32 +5,67 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-2a5ad7)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-canvas.casualoffice.org-2a5ad7)](https://canvas.casualoffice.org/docs/)
 
-**An embeddable, real-time collaborative canvas for your app.**
+**The open-source collaborative workspace engine for your application.**
 
-OpenCanvas puts docs, databases, whiteboards and diagrams in one live document that your
-application embeds, the way apps embed Collabora Online for office files. Your app keeps the
-users, the permissions and the files; OpenCanvas does the editing and saves the file back to
-you. It never stores documents. It is open source under Apache-2.0.
+Documents, spreadsheets, databases, whiteboards, diagrams and project management — together in
+one embeddable, real-time collaborative canvas.
 
-[Website](https://canvas.casualoffice.org) ·
-[Try the demo](https://canvas.casualoffice.org/app/#demo) ·
-[Documentation](docs/00-README.md) ·
-[Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
-[Release notes 0.4.0](docs/37-RELEASE-v0.4.0.md) ·
-[Changelog](CHANGELOG.md)
+Built with Rust, WebAssembly and Yjs. Self-hosted and Apache-2.0 licensed.
+
+Your application owns the users, permissions and data. OpenCanvas handles everything related to
+collaborative editing.
+
+**[Try the live demo](https://canvas.casualoffice.org/app/#demo) ·
+[Quick start](#run-it) ·
+[Documentation](https://canvas.casualoffice.org/docs/) ·
+[GitHub Issues](https://github.com/CasualOffice/opencanvas/issues)**
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="site/assets/screens/canvas-dark.png">
   <img alt="A canvas open in OpenCanvas: the Sprint 42 planning notes with a callout, decisions, live cursors of two collaborators and the presence avatars in the top bar." src="site/assets/screens/canvas-light.png">
 </picture>
 
+OpenCanvas by CasualOffice works the way applications embed Collabora Online for office files:
+your app keeps the users, the permissions and the files; OpenCanvas does the editing and saves
+the file back to you. It never stores documents.
+[Website](https://canvas.casualoffice.org) · [Integration guide](docs/05-INTEGRATION-GUIDE.md) ·
+[Release notes 0.4.0](docs/37-RELEASE-v0.4.0.md) · [Changelog](CHANGELOG.md)
+
+## What is in the canvas
+
+- **Spreadsheets.** An Excel-style Spreadsheet block on [opencalc](https://github.com/CasualOffice/opencalc)'s
+  engine: formula bar, Excel keys, about 120 functions, several sheets, filters, freeze, merge and
+  formats, paste from Excel and Sheets, `.xlsx` and `.ods` import and `.xlsx` export, live editing
+  with everyone's selections, and a phone layout.
+- **Linked charts.** Column, line, area, pie, donut and scatter charts from a sheet range or a
+  database field, updating live; exports write the values as a table.
+- **Databases.** Typed fields with table, board, calendar and gallery views; formulas in
+  spreadsheet syntax, relations and rollups; virtualized tables at 100,000 rows; a database opens
+  as a spreadsheet, and a sheet range becomes a database.
+- **Timeline (Gantt) and Workload.** Dependencies, milestones and the critical path; a Workload view
+  of people against weeks, with drag to reassign.
+- **Whiteboards and diagrams.** Pen, sticky notes, shapes, attached arrows, shape libraries,
+  connector routing and layout, with draw.io and Excalidraw import ([diagram guide](docs/29-DIAGRAMMING.md)).
+- **Integrations.** [Nextcloud](integrations/nextcloud/README.md) with Talk (a canvas beside the chat
+  or call, and meeting canvases), [Jitsi Meet](integrations/jitsi/README.md),
+  [Mattermost](integrations/mattermost/README.md) channels and [Element / Matrix](integrations/matrix/README.md).
+- **Benchmarks, published with their load.** Every run is a result file in `bench/results/` with its
+  hardware and load mix, rendered on the [benchmarks page](https://canvas.casualoffice.org/docs/benchmarks.html).
+  See [Benchmarks](#benchmarks) below.
+
+Formula, relation and rollup fields, imports, live blocks, automation and offline editing ship but
+are off until the host turns them on; the [release notes](docs/37-RELEASE-v0.4.0.md) list the
+known limitations. Comparisons with Notion, Miro, Etherpad and Coda, including where they are
+stronger, are on the [website](https://canvas.casualoffice.org/alternatives/notion.html).
+
 ## Features
 
 **Editing**
 - Blocks: text, headings, lists, checklists, toggles, callouts, code, tables, images, files,
   link cards, sandboxed embeds and columns, from a categorised insert menu.
-- Databases: typed fields with table, board, calendar and gallery views; filter, sort, CSV
-  import and export.
+- Spreadsheet block and linked charts, as above.
+- Databases: typed fields with table, board, calendar, gallery, Timeline and Workload views;
+  filter, sort, CSV import and export; formulas, relations and rollups.
 - Whiteboards and diagrams: shapes, sticky notes, pen, attached arrows, shape libraries,
   connector routing, layout, and draw.io and Excalidraw import ([diagram guide](docs/29-DIAGRAMMING.md)).
 - 40 templates in 9 categories. Autosave only, on desktop and phone.
@@ -66,6 +101,20 @@ you. It never stores documents. It is open source under Apache-2.0.
 - SQLite by default. MySQL 8.4 and MariaDB 11.4 work when `DATABASE_URL=mysql://…` is set;
   `REDIS_URL` turns on cluster mode. Docker image and Helm chart ([operations](docs/13-OPERATIONS-AND-DEPLOYMENT.md),
   [capacity and sizing](docs/22-CAPACITY-AND-SIZING.md)).
+
+## Benchmarks
+
+Every number comes from a result file with its hardware and load mix
+([benchmarks page](https://canvas.casualoffice.org/docs/benchmarks.html),
+[capacity and sizing](docs/22-CAPACITY-AND-SIZING.md)). The runs below are short runs on one
+developer laptop (Apple M4, 10 cores, 16 GB, SQLite), not the 4 vCPU / 8 GB reference machine, so
+rerun them on your hardware (`scripts/bench/run`) before you size production.
+
+| Run | Load mix | Result |
+|---|---|---|
+| 10,000 connections on one node ([result](bench/results/2026-11-26-x10k-short-local-perf11.json)) | 500 rooms; 75% idle viewers, 15% moving cursors at 2/s, 10% typing at 1 edit/s; `kill -9` and restart at 2 min | p99 edit latency at most 64.2 ms in every bucket outside the 60 s after the restart; 3,210 MB RSS; all 10,000 clients back within 37.1 s |
+| 1,000 people in one room ([result](bench/results/2026-11-26-r1k-short-local-cap1000.json)) | cap raised to 1,000; 90% moving cursors at 5/s, 10% typing at 2 edits/s | p99 at most 80.6 ms, no drops; **memory still grew during the run, so the default cap stays 550** |
+| 100,000-row database in the browser ([result](e2e/perf/results/db100k-local-m4-incremental.json)) | one tab, 100,000 rows × 30 fields, scrolling with a cell edit every 500 ms | frame time p95 16.7 ms (60 fps) in table and board views, no long tasks |
 
 ## Run it
 
@@ -120,8 +169,8 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 ## Releases and roadmap
 
 The latest release is [0.4.0](docs/37-RELEASE-v0.4.0.md) (2026-11-28); every version is in the
-[CHANGELOG](CHANGELOG.md). Next: v0.4 brings advanced databases, partial synchronization and
-performance work; v0.5 a plugin ecosystem, developer tooling and enterprise hardening
+[CHANGELOG](CHANGELOG.md). Next: v0.4.1 closes the spreadsheet, chart and Timeline gaps in the
+release notes; v0.5 brings a plugin ecosystem, developer tooling and enterprise hardening
 ([roadmap](docs/09-ROADMAP.md)). Support is best-effort, with no production SLA.
 
 ## Documentation

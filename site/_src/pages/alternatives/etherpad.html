@@ -1,0 +1,63 @@
+<!--meta {"title": "Etherpad alternative", "seo_title": "Etherpad alternative with databases", "description": "OpenCanvas compared with Etherpad: live meeting notes with databases, spreadsheets and whiteboards, in the same Jitsi Meet slot, under Apache-2.0.", "nav": ""} -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Compare</span>
+  <h1>An Etherpad alternative with databases and whiteboards</h1>
+  <p class="lede">Etherpad is the long-standing open-source pad for writing together in real time, and the shared document many Jitsi Meet deployments use. OpenCanvas can take the same place in a Jitsi meeting and adds structured blocks, task databases, spreadsheets and a whiteboard to the notes.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}app/#demo">Try the live demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="{{root}}docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="{{root}}docs/jitsi.html">Jitsi Meet guide</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2>The short answer</h2>
+  <p>Both are open source under Apache-2.0 and both are self-hosted. Etherpad is a light, proven plain-text pad with a deep plugin ecosystem. OpenCanvas is a heavier, newer block editor for notes that also need tables, tasks, diagrams or a spreadsheet, and that should be saved into the application your people already use.</p>
+
+  <h2>Where OpenCanvas fits better</h2>
+  <ul>
+    <li><strong>More than text.</strong> Headings, checklists, callouts, tables, databases with board and calendar views, a spreadsheet block, charts and a whiteboard, all in the same live document.</li>
+    <li><strong>Drop-in for Jitsi Meet.</strong> One Prosody plugin and a few <code>.env</code> lines, with no Docker image or compose changes. Everyone opens the same canvas from Shared document, as they would a pad. It starts blank or from a template, and is deleted when the meeting ends.</li>
+    <li><strong>Saved where your files are.</strong> In Nextcloud, Mattermost channels or your own application, the canvas is a file in the host's storage, with the host's permissions and versions. OpenCanvas keeps no documents.</li>
+    <li><strong>Roles enforced by the server.</strong> View, comment or edit, checked on every change; in Jitsi, moderators edit and guests get the role you configure.</li>
+  </ul>
+
+  <h2>Where Etherpad is stronger</h2>
+  <ul>
+    <li><strong>Maturity and footprint.</strong> Etherpad has been in production for well over a decade and runs comfortably on very small servers. OpenCanvas is an early release with best-effort support and no production SLA.</li>
+    <li><strong>Authorship and history.</strong> Etherpad colours text by author and has a time slider that replays a pad. OpenCanvas shows who is editing live, but its version history depends on the host, and temporary Jitsi canvases keep none.</li>
+    <li><strong>Plugins.</strong> Etherpad has a large catalogue of community plugins. OpenCanvas has a Block SDK, but few third-party blocks exist yet.</li>
+    <li><strong>Standalone pads.</strong> Etherpad stores pads itself and is useful with no other system. OpenCanvas always needs a host to keep the file, or uses temporary canvases.</li>
+  </ul>
+
+  <h2>How they differ</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="How OpenCanvas and Etherpad differ">
+    <table>
+      <thead><tr><th scope="col">Question</th><th scope="col">OpenCanvas</th><th scope="col">Etherpad</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Licence</th><td>Apache-2.0</td><td>Apache-2.0</td></tr>
+        <tr><th scope="row">Server</th><td>Rust</td><td>Node.js</td></tr>
+        <tr><th scope="row">Content</th><td>Blocks: text, databases, spreadsheets, charts, whiteboards</td><td>Rich text</td></tr>
+        <tr><th scope="row">Who stores documents</th><td>The host application, or nobody (temporary canvases)</td><td>Etherpad's own database</td></tr>
+        <tr><th scope="row">Jitsi Meet</th><td>Shared document slot, through a Prosody plugin</td><td>Shared document slot, built in</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  {{include:ships-table}}
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Can OpenCanvas replace Etherpad in Jitsi Meet?{{icon:chevron-down}}</summary><div data-answer><p>Yes. The OpenCanvas Prosody plugin uses the shared-document slot Etherpad uses, so the Shared document button opens a canvas instead of a pad. You add the plugin and a few lines of configuration; the Jitsi images stay as they are. See the Jitsi Meet guide.</p></div></details>
+    <details><summary>What happens to the notes when the meeting ends?{{icon:chevron-down}}</summary><div data-answer><p>In Jitsi Meet the canvas is temporary: it is deleted when the meeting ends, so people export it first (PDF, Word, Markdown or the native file). In Nextcloud Talk and Mattermost channels, meeting canvases can be saved as files in the host instead.</p></div></details>
+    <details><summary>Can I import my existing pads?{{icon:chevron-down}}</summary><div data-answer><p>Export a pad from Etherpad as HTML or plain text, and import the HTML when the host turns import on. Formatting carries over as far as HTML allows; author colours and pad history do not.</p></div></details>
+    <details><summary>Is it free?{{icon:chevron-down}}</summary><div data-answer><p>Yes. Like Etherpad, OpenCanvas is open source under the Apache-2.0 licence. Support is best effort, with no production SLA.</p></div></details>
+  </div>
+</div></section>
+
+{{include:compare-footer}}

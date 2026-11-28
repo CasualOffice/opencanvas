@@ -27,6 +27,8 @@ and may use these placeholders, expanded here:
                                    WHAT says what the operator configures
     {{version}}, {{released}}      the release in Cargo.toml and its date in CHANGELOG.md
                                    (expanded first, so a claim's quote may use them)
+    {{include:NAME}}         site/_src/partials/NAME.html, expanded in its turn (one shared
+                             block, such as the table of what OpenCanvas ships, on many pages)
 
 A claim block is an element with `data-claim` (and every item of a `ul.facts` list);
 tools/check-site-claims.py fails on one without exactly one marking, and on a number in
@@ -53,6 +55,8 @@ BLOB = REPO + "/blob/main/"
 TREE = REPO + "/tree/main/"
 BASE_URL = "https://canvas.casualoffice.org/"
 NAME = "OpenCanvas"
+# The name in page titles, social cards and announcements (the repository stays "opencanvas").
+BRAND = "OpenCanvas by CasualOffice"
 LICENCE = "Apache-2.0"
 DEMO = "app/#demo"
 ORG = "https://github.com/CasualOffice"
@@ -286,10 +290,11 @@ def footer(root: str) -> str:
     <div class="foot-brand">
       <img class="logo-light" src="{root}assets/logo.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
       <img class="logo-dark" src="{root}assets/logo-dark.svg" alt="OpenCanvas" width="136" height="24" loading="lazy">
-      <p>An open-source collaborative canvas you embed, under <span class="nowrap">{LICENCE}</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
+      <p><strong>{BRAND}.</strong> The open-source collaborative workspace engine you embed, under <span class="nowrap">{LICENCE}</span>. Part of <a href="https://github.com/CasualOffice">CasualOffice</a>.</p>
       <p class="foot-legal">Your application keeps the users, the permissions and the file. OpenCanvas does the editing.</p>
     </div>
-    {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
+    {col("Product", [("Overview", "index.html#product"), ("Try the demo", DEMO), ("Collaborative editor", "solutions/collaborative-editor.html"), ("Meeting notes", "solutions/meeting-notes.html"), ("Project management", "solutions/project-management.html"), ("Roadmap", "roadmap.html"), ("Changelog", "changelog.html")])}
+    {col("Compare", [(f"{n} alternative", f"alternatives/{n.lower()}.html") for n in COMPARED])}
     {col("Documentation", [("Getting started", "docs/getting-started.html"), ("Integration guide", "docs/integration.html"), ("API reference", "api/index.html"), ("WOPI mode", "docs/wopi.html"), ("Jitsi Meet", "docs/jitsi.html"), ("Element / Matrix", "docs/matrix.html"), ("Mattermost", "docs/mattermost.html"), ("Nextcloud", "docs/nextcloud.html"), ("Operations", "docs/operations.html")])}
     {col("Trust", [("Security and limits", "docs/security.html"), ("Architecture", "docs/architecture.html"), ("Protocol", "docs/protocol.html"), ("FAQ", "docs/faq.html"), ("Facts", "docs/facts.html")])}
     {col("Project", [("GitHub", REPO), ("Licence (Apache-2.0)", BLOB + "LICENSE"), ("Contributing", BLOB + "AGENTS.md"), ("Brand", "brand.html")])}
@@ -297,6 +302,9 @@ def footer(root: str) -> str:
   <div class="wrap foot-base"><p>Open source under the Apache License 2.0. Keep the NOTICE file when you redistribute it. Bundled fonts are under the SIL Open Font License.</p><p>Early release with best-effort support and no production SLA.</p></div>
 </footer>"""
 
+
+# The products the alternatives/ pages compare with, named only to identify them.
+COMPARED = ["Notion", "Miro", "Etherpad", "Coda"]
 
 SEARCH_DIALOG = """<dialog class="search-dialog" aria-label="Search the site">
   <form method="dialog" class="search-form" role="search">
@@ -326,7 +334,7 @@ def org_node() -> dict:
 
 
 def website_node() -> dict:
-    return {"@type": "WebSite", "@id": SITE_ID, "name": NAME, "url": BASE_URL, "inLanguage": "en",
+    return {"@type": "WebSite", "@id": SITE_ID, "name": NAME, "alternateName": BRAND, "url": BASE_URL, "inLanguage": "en",
             "description": "The website and documentation of OpenCanvas, an embeddable real-time collaborative canvas.",
             "publisher": {"@id": ORG_ID}}
 
@@ -389,14 +397,14 @@ def page(*, title: str, description: str, body: str, root: str, path: str, curre
     """A whole page around `body` (the contents of <main>). `path` is the page's path
     under the site root ("index.html", "docs/faq.html"), for its canonical URL.
 
-    `seo_title` replaces "{title} | OpenCanvas" in <title> (used as is when it names
+    `seo_title` replaces "{title} | OpenCanvas by CasualOffice" in <title> (used as is when it names
     OpenCanvas). `graph` holds the page's own JSON-LD nodes; the Organization, the WebSite
     and the breadcrumbs from `trail` are added. `modified` (YYYY-MM-DD, from git_date) is
     the page's dateModified and its sitemap lastmod; an indexable page must have one."""
     if seo_title:
-        full_title = seo_title if NAME in seo_title else f"{seo_title} | {NAME}"
+        full_title = seo_title if NAME in seo_title else f"{seo_title} | {BRAND}"
     else:
-        full_title = "OpenCanvas: a collaborative canvas you embed" if title == NAME else f"{title} | {NAME}"
+        full_title = BRAND if title == NAME else f"{title} | {BRAND}"
     search = SEARCH_DIALOG.format(icon=icon("search", cls="search-icon"), x=icon("x"))
     mc = f' class="{main_class}"' if main_class else ""
     canonical = BASE_URL + ("" if path == "index.html" else path)
@@ -412,7 +420,7 @@ def page(*, title: str, description: str, body: str, root: str, path: str, curre
         head = f"""
 <link rel="canonical" href="{canonical}">
 <meta property="og:type" content="{og_type}">
-<meta property="og:site_name" content="{NAME}">
+<meta property="og:site_name" content="{BRAND}">
 <meta property="og:locale" content="en_US">
 <meta property="og:title" content="{e(full_title)}">
 <meta property="og:description" content="{e(description)}">
@@ -507,8 +515,19 @@ def claim(arg: str, root: str) -> str:
     raise SystemExit(f"site: bad claim marking {{{{claim:{arg}}}}}")
 
 
+def _partial(name: str) -> str:
+    path = SRC / "partials" / f"{name}.html"
+    if not path.is_file():
+        raise SystemExit(f"site: {{{{include:{name}}}}} names site/_src/partials/{name}.html, which does not exist")
+    text = re.sub(r"\A\s*<!--.*?-->\s*", "", path.read_text(encoding="utf8"), flags=re.S)
+    if "{{include:" in text:
+        raise SystemExit(f"site: partial {name} includes another partial; keep partials flat")
+    return text
+
+
 def expand(text: str, root: str) -> str:
     """Expand {{version}}, {{released}}, {{root}}, {{icon:...}}, {{shot:...}} and {{claim:...}}."""
+    text = re.sub(r"\{\{include:([a-z0-9-]+)\}\}", lambda m: _partial(m.group(1)), text)
     text = text.replace("{{version}}", version()).replace("{{released}}", released())
 
     def sub(m: re.Match) -> str:
@@ -573,7 +592,7 @@ DOC_SEO_TITLES = {
     "ai": "AI assistant and MCP endpoint",
     "capacity": "Capacity and sizing: users per server",
     "benchmarks": "OpenCanvas benchmarks: latency, memory and reconnects",
-    "index": "OpenCanvas documentation",
+    "index": "OpenCanvas by CasualOffice documentation",
 }
 
 
@@ -882,7 +901,7 @@ class _Text(HTMLParser):
 
 def page_title(page_html: str, rel: str) -> str:
     title = re.search(r"<title>(.*?)</title>", page_html, re.S)
-    return re.sub(r" \| OpenCanvas(?: API)?$", "", html.unescape(title.group(1))) if title else rel
+    return re.sub(r" \| OpenCanvas(?: by CasualOffice| API)?$", "", html.unescape(title.group(1))) if title else rel
 
 
 def index_entries(rel: str, page_html: str) -> list[dict]:

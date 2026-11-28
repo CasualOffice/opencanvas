@@ -1,0 +1,49 @@
+<!--meta {"title": "Project management", "seo_title": "Open-source project management with Gantt", "description": "Self-hosted project planning in one canvas: task databases, boards, a Timeline (Gantt) with dependencies and critical path, and Workload by person.", "nav": ""} -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Use case</span>
+  <h1>Open-source project management in a collaborative canvas</h1>
+  <p class="lede">Keep the plan, the task list and the schedule in one live document: a database of tasks with board, calendar, Timeline (Gantt) and Workload views, formulas and rollups, beside the brief and the whiteboard. Self-hosted, and embeddable in your own product.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}app/#demo">Try the live demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="{{root}}docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="{{root}}docs/index.html">Documentation</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2>Tasks as a database</h2>
+  <p>Typed fields (status, select, tags, person, date, number, checkbox, progress and more) with table, board, calendar and gallery views over the same rows. Filter, sort and search; drag cards between columns; import and export CSV. Formula fields in spreadsheet syntax, relations between databases and rollups over them add up estimates and progress, once the host turns them on. Virtualized tables keep large backlogs usable: the benchmark scrolls 100,000 rows of 30 fields.</p>
+
+  <h2>Timeline (Gantt) and Workload</h2>
+  <ul>
+    <li><strong>Timeline:</strong> a Gantt chart over start and end dates, with dependencies, milestones and the critical path. Drag to move, resize and link; a task moved past its dependents can shift them along. Full keyboard use; on phones, a list by week.</li>
+    <li><strong>Workload:</strong> people against weeks, so overload is visible. Drag a task to another person's row to reassign it.</li>
+    <li>Insert either from the menu with <code>/timeline</code>, <code>/gantt</code> or <code>/workload</code>.</li>
+  </ul>
+
+  <h2>Numbers and charts</h2>
+  <p>A Spreadsheet block for budgets and estimates, with <code>.xlsx</code> import and export, and charts linked to a sheet range or a database field that update as the data changes. A database can open as a spreadsheet, and a range can become a database.</p>
+
+  <h2>Automation and the rest of the plan</h2>
+  <p>Automation rules, when the host turns them on, react to a row added, a field changed, a checklist checked, a comment, a date or a schedule, and set fields, move rows, comment, notify or call a URL. The brief, decisions and diagrams live in the same canvas, with comments, mentions and live cursors.</p>
+
+  <h2>Where a dedicated tracker is stronger</h2>
+  <p>OpenCanvas is not an issue tracker. It has no sprints, issue workflows, time tracking, cross-project portfolio views or reporting dashboards of its own, and its views belong to one canvas. For those, keep your tracker and use OpenCanvas for the plan, the notes and the shared schedule.</p>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  {{include:ships-table}}
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Does OpenCanvas have a Gantt chart?{{icon:chevron-down}}</summary><div data-answer><p>Yes. The Timeline view of a database is a Gantt chart with dependencies, milestones and the critical path, and the Workload view shows each person's tasks by week.</p></div></details>
+    <details><summary>Can it replace Jira or a similar tracker?{{icon:chevron-down}}</summary><div data-answer><p>For a team that plans in documents, often yes; for workflows with sprints, issue states, time tracking and cross-project reporting, no. OpenCanvas works well beside a tracker, holding the plan and the shared schedule.</p></div></details>
+    <details><summary>How large can a task database get?{{icon:chevron-down}}</summary><div data-answer data-claim><p>The browser benchmark scrolls and edits a database of 100,000 rows and 30 fields. It ran on a developer laptop, so measure your own case.</p>{{claim:source|Load mix: one tab, no peers, 100,000 rows x 30 fields|docs/10-EXECUTION-TRACKER.md}}</div></details>
+    <details><summary>Is it free?{{icon:chevron-down}}</summary><div data-answer><p>Yes. OpenCanvas is open source under the Apache-2.0 licence, free to self-host, modify and embed, including in commercial products. Support is best effort, with no production SLA.</p></div></details>
+  </div>
+</div></section>
+
+{{include:compare-footer}}

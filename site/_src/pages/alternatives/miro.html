@@ -1,0 +1,63 @@
+<!--meta {"title": "Miro alternative", "seo_title": "Open-source Miro alternative", "description": "OpenCanvas compared with Miro: whiteboards and diagrams inside a collaborative document, self-hosted under Apache-2.0 and embedded in your own application.", "nav": ""} -->
+<section class="page-head"><div class="wrap narrow">
+  <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice · Compare</span>
+  <h1>A self-hosted, open-source alternative to Miro</h1>
+  <p class="lede">Miro is a hosted online whiteboard. In OpenCanvas the whiteboard is one block of a collaborative document, next to the notes, databases and spreadsheets it belongs with, and the whole thing runs on your servers inside your own application.</p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="{{root}}app/#demo">Try the live demo<span class="btn-icon">{{icon:arrow-right:16}}</span></a>
+    <a class="btn btn-secondary" href="{{root}}docs/getting-started.html#run-it">Quick start</a>
+    <a class="btn btn-secondary" href="{{root}}docs/index.html">Documentation</a>
+  </div>
+</div></section>
+
+<section class="section-tight"><div class="wrap narrow prose">
+  <h2>The short answer</h2>
+  <p>For large workshops on an endless board, with a big template library and facilitation tools, Miro is the stronger whiteboard. If you want diagrams and sticky notes to live inside the document where the decisions are written down, and you need to self-host or embed that in your product, OpenCanvas is built for it.</p>
+
+  <h2>Where OpenCanvas fits better</h2>
+  <ul>
+    <li><strong>The board is part of the document.</strong> One session, one save, one file: the whiteboard, the meeting notes and the task database sit together, and everyone's pointer shows while they draw.</li>
+    <li><strong>Diagrams you can bring with you.</strong> Shape libraries, connectors that stay attached to shapes, connector routing and layout, and import from draw.io and Excalidraw; export as SVG or PNG.</li>
+    <li><strong>Self-hosted and embeddable.</strong> It runs on your servers, your application signs who may open which board and with which role, and the file is saved back to your storage.</li>
+    <li><strong>Apache-2.0.</strong> No per-seat licence; build it into your own product.</li>
+  </ul>
+
+  <h2>Where Miro is stronger</h2>
+  <ul>
+    <li><strong>Whiteboarding depth.</strong> Miro is a dedicated whiteboard product with facilitation features such as timers and voting, presentation of frames, and a large library of templates. The OpenCanvas board is simpler.</li>
+    <li><strong>Scale of one board.</strong> Miro is designed for very large boards with many people. An OpenCanvas board is a block of a document and is tuned for the size of a working session.</li>
+    <li><strong>Integrations and apps.</strong> Miro connects to many work tools and has desktop and mobile apps. OpenCanvas runs in the browser and integrates with Jitsi Meet, Nextcloud, Mattermost channels and Element / Matrix.</li>
+    <li><strong>Maturity.</strong> OpenCanvas is an early release with best-effort support and no production SLA.</li>
+  </ul>
+
+  <h2>How they differ</h2>
+  <div class="table-scroll" tabindex="0" role="region" aria-label="How OpenCanvas and Miro differ">
+    <table>
+      <thead><tr><th scope="col">Question</th><th scope="col">OpenCanvas</th><th scope="col">Miro</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">What it is</th><td>A collaborative document engine with a whiteboard block</td><td>A hosted whiteboard product</td></tr>
+        <tr><th scope="row">Where it runs</th><td>Your servers (Docker, Helm)</td><td>Miro's cloud</td></tr>
+        <tr><th scope="row">Who stores boards</th><td>Your application</td><td>Miro</td></tr>
+        <tr><th scope="row">Text, databases and spreadsheets beside the board</th><td>Yes, in the same file</td><td>On the board, as board objects</td></tr>
+        <tr><th scope="row">Source code</th><td>Open source, Apache-2.0</td><td>Proprietary</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section class="section-tight section-alt" aria-labelledby="ships-h"><div class="wrap">
+  <div class="sec-head"><h2 id="ships-h">What OpenCanvas ships today</h2><p>Only what is in the release. Where a feature is off until the host turns it on, or not built, the table says so.</p></div>
+  {{include:ships-table}}
+</div></section>
+
+<section class="section" aria-labelledby="faq-h"><div class="wrap faq-grid">
+  <div class="sec-head"><h2 id="faq-h">Questions people ask.</h2><p>More in the <a href="{{root}}docs/faq.html">documentation FAQ</a>.</p></div>
+  <div class="faq">
+    <details><summary>Is the OpenCanvas whiteboard an infinite canvas like Miro?{{icon:chevron-down}}</summary><div data-answer><p>It is a whiteboard block inside a document, with zoom and full screen. It suits diagrams, sketches and sticky-note sessions that belong to a document; it is not built to replace a dedicated board for very large workshops.</p></div></details>
+    <details><summary>Can I bring diagrams from other tools?{{icon:chevron-down}}</summary><div data-answer><p>Yes: OpenCanvas imports draw.io and Excalidraw files when the host turns import on, and exports boards as SVG and PNG. There is no Miro import.</p></div></details>
+    <details><summary>Can I embed the whiteboard in my own product?{{icon:chevron-down}}</summary><div data-answer><p>Yes. That is the main use: your backend signs a short-lived launch token naming the user, the file and the role, and the editor opens in an iframe or the open-canvas web component. Your app keeps the file.</p></div></details>
+    <details><summary>Is it free?{{icon:chevron-down}}</summary><div data-answer><p>Yes. OpenCanvas is open source under the Apache-2.0 licence, free to self-host, modify and embed, including in commercial products. Support is best effort, with no production SLA.</p></div></details>
+  </div>
+</div></section>
+
+{{include:compare-footer}}
