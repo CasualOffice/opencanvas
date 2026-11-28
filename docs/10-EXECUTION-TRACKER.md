@@ -409,18 +409,18 @@ Owner request 2026-11-28: the whiteboard and diagram block has many issues; audi
 
 | ID | Item | Status | Notes |
 |---|---|---|---|
-| BRD-05 | P0: sticky note and text placed with the mouse lose focus at once; typed keys run as tool shortcuts (D1) | Todo | Bug; `preventDefault` on the creating pointer-down; Playwright test that clicks and types, seen failing first; S |
-| BRD-06 | P1: Escape while typing discards the text; make it commit (D2) | Todo | Bug; S |
-| BRD-07 | P1: drag to size for rect, ellipse, diamond, sticky; click keeps the default size (D5) | Todo | Bug, no new UI; S |
-| BRD-08 | P1: auto-layout preview bar half off screen, `.ocdg-pbar` defined twice (AutoLayout, Phone) (D3) | Todo | Bug; S |
-| BRD-09 | P1: auto-layout separates a drawn frame from what it holds, overlaps text, strands connector ends (D4) | Todo | Bug; `#demo` board as fixture; M |
-| BRD-10 | P2: floating shape toolbar covers the board's top actions and zoom pill; placements under the controls (D6, D12) | Todo | Bug; S |
-| BRD-11 | P2: Libraries chooser overflows the window top; add max-height and scroll (D7) | Todo | Bug; S |
-| BRD-12 | P2: panel and keyboard placement go to the nearest free spot, not on top of shapes (D8) | Todo | Bug; S |
-| BRD-13 | P2: command palette gains align, distribute, group, z-order, auto-layout, export, insert shape (D9) | Todo | Bug, existing UI; S |
-| BRD-14 | P2: demo says "Saved" for edits that are not kept (ADR-043) (D10) | Todo | Bug; S |
-| BRD-15 | P3: library shape headings show raw ids ("cylinder") (D13) | Todo | Bug; S |
-| BRD-16 | P3: Import missing from the demo menu without a reason; phone sheet lists Mermaid import that is not built (D14) | Todo | Bug; S |
+| BRD-05 | P0: sticky note and text placed with the mouse lose focus at once; typed keys run as tool shortcuts (D1) | Done | Done (2026-11-28): the shape is made on pointer-up and the pointer-down's default is prevented, so focus stays in the new editor. Seen failing first: vitest `audit.test.tsx` (defaultPrevented), Playwright `e2e/diagram/board-audit.spec.ts` BRD-05 (real mouse: textarea empty); Bug; `preventDefault` on the creating pointer-down; Playwright test that clicks and types, seen failing first; S |
+| BRD-06 | P1: Escape while typing discards the text; make it commit (D2) | Done | Done (2026-11-28): Escape commits. Seen failing first: `audit.test.tsx` BRD-06; Bug; S |
+| BRD-07 | P1: drag to size for rect, ellipse, diamond, sticky; click keeps the default size (D5) | Done | Done (2026-11-28): drag sizes (draft while dragging, Shift square, 8 px threshold, 10 × 10 minimum), click keeps the default. Seen failing first: `audit.test.tsx` BRD-07 (2), `board-audit.spec.ts` BRD-07; Bug, no new UI; S |
+| BRD-08 | P1: auto-layout preview bar half off screen, `.ocdg-pbar` defined twice (AutoLayout, Phone) (D3) | Done | Done (2026-11-28): phone tab bar renamed `.ocdg-ptabs`; the preview bar is `position:fixed` (it is rendered inside the top bar). Seen failing first: `board-audit.spec.ts` BRD-08 (top −22.5 px); Bug; S |
+| BRD-09 | P1: auto-layout separates a drawn frame from what it holds, overlaps text, strands connector ends (D4) | Done | Done (2026-11-28): `compute.ts` treats a dashed or labelled rect (or container kind) around shapes as their container (`framedBy`), binds loose connector ends within 12 units of a shape (`touching`), sizes nodes by `bbox` (text); `apply.ts` records `props.parent` and the bindings in the same transaction (one Undo). Seen failing first: `audit.test.tsx` BRD-09 on the `flow` preset; Bug; `#demo` board as fixture; M |
+| BRD-10 | P2: floating shape toolbar covers the board's top actions and zoom pill; placements under the controls (D6, D12) | Done | Done (2026-11-28): the toolbar's place is checked against the top actions, tool bar and zoom pill and moved above, below or sideways. Not done: D12 (new shapes may still sit under the controls). Seen failing first: `board-audit.spec.ts` BRD-10 (tall selection on the right); Bug; S |
+| BRD-11 | P2: Libraries chooser overflows the window top; add max-height and scroll (D7) | Done | Done (2026-11-28): `max-height` + scroll, Done sticky. Seen failing first: `board-audit.spec.ts` BRD-11 (top −31 px at 600 px); Bug; S |
+| BRD-12 | P2: panel and keyboard placement go to the nearest free spot, not on top of shapes (D8) | Done | Done (2026-11-28): `freeSpot` (ops.ts) for panel clicks and keyboard placement; drops and clicks on the canvas stay where they are. Seen failing first: `audit.test.tsx` BRD-12 (2); Bug; S |
+| BRD-13 | P2: command palette gains align, distribute, group, z-order, auto-layout, export, insert shape (D9) | Done | Done (2026-11-28): align ×6, distribute ×2, ungroup, front, back, auto-layout in Commands (`DiagramCanvas.align/distribute`). Seen failing first: `audit.test.tsx` BRD-13; Bug, existing UI; S |
+| BRD-14 | P2: demo says "Saved" for edits that are not kept (ADR-043) (D10) | Done | Done (2026-11-28): new save state `demo`, "Demo · not saved", popover "Demo canvas". Seen failing first: `board-audit.spec.ts` BRD-14; Bug; S |
+| BRD-15 | P3: library shape headings show raw ids ("cylinder") (D13) | Done | Done (2026-11-28): `nameOf` uses the library label. Seen failing first: `audit.test.tsx` BRD-15; Bug; S |
+| BRD-16 | P3: Import missing from the demo menu without a reason; phone sheet lists Mermaid import that is not built (D14) | Done | Done (2026-11-28): phone sheet says "Import draw.io or Excalidraw". The demo's missing Import entry is by design (the host allows no import format there), so it is left as is. Seen failing first: `diagram-phone.test.tsx` 11e; Bug; S |
 | BRD-17 | Diagram header at narrow widths (title cut to one letter at 500 px) (D11) | Todo | UX, needs a prototype; S |
 | BRD-18 | Right-click menu for board and diagram | Todo | UX, needs a prototype; M |
 | BRD-19 | Tool lock | Todo | UX, needs a prototype; S |
@@ -492,6 +492,7 @@ ADR-045 to ADR-047 accepted by the owner 2026-11-24; ADR-045 on the condition th
 
 | Date | Item | Result |
 |---|---|---|
+| 2026-11-28 | BRD-05..16 board audit bug fixes (docs/41 §5.1) | Board vitest 33 files / 380+ tests pass incl. new `audit.test.tsx` (10, 9 seen failing first) and `diagram-phone` 11e; Playwright `-c e2e/diagram/playwright.config.ts` (production build, `#demo`, 2 workers): new `board-audit.spec.ts` (6, all seen failing first on the old build) plus the existing board, icons and S1-S11 specs pass (one S6 dark run failed once in a full 2-worker run on a toBeVisible and passed on rerun and 3 × 2 repeats); `specs/w-two-user-board.spec.ts` passes against a fresh release `oc-server` (the 11-27 binary refused the current sample host config). BRD-17..22 wait for a prototype. |
 | 2026-11-28 | Board and diagram audit, opencanvas.studio (docs/41) | Live `#demo` (v0.4.1) and opencanvas.studio in Chrome; 15 defects (1 P0, 4 P1), rows BRD-05..22. P0: a sticky or text placed with the mouse loses focus on the `mousedown` default (focus trace in docs/41 D1). opencanvas.studio is an Excalidraw-based AI whiteboard, unrelated to this repository. Analysis only; no build or tests run. |
 | 2026-11-28 | SHEET-06: linked chart block (4h), database ⇄ spreadsheet (8a) | vitest chart 8 + link 5 + insert/profile, cargo chart_exports 4, Playwright chart-block.spec.ts, typecheck, initial JS 299.3 / 300 KB |
 | 2026-11-26 | BENCH-05 benchmarks page; allocator gauges; open-file limit raised at start (PERF-11) | Site checks (links, claims, SEO) green. R1K at 1,000: live heap (`oc_alloc_allocated_bytes`) grows in 50–80 MB steps (186 → 420 MB in 4 min), cause open |

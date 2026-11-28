@@ -4,6 +4,11 @@
 issues", and check https://opencanvas.studio. Tracker rows BRD-05..BRD-22 (Todo). Fixes that change the UI wait for an
 approved prototype (ADR-011); §5 splits the plan accordingly.
 
+**Update 2026-11-28:** the §5.1 bug fixes BRD-05..16 are built (tracker rows; tests in
+`web/packages/board/src/audit.test.tsx` and `e2e/diagram/board-audit.spec.ts`). D12 (new shapes
+under the board's controls) and the demo's missing Import entry (by design: the demo host allows no
+import format) stay open. BRD-17..22 wait for a prototype.
+
 **How this was checked.** The live demo https://canvas.casualoffice.org/app/#demo (release v0.4.1) in Chrome at
 1408 × 653 and 500 × 623 CSS px (500 px is the narrowest this Chrome window goes), dark and light theme, driven through
 the browser automation tools (synthetic mouse and keyboard through the DevTools protocol). opencanvas.studio in the same
