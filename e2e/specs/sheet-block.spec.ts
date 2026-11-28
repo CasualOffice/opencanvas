@@ -323,3 +323,95 @@ test("SHEET-07: merge, borders, wrap, find and replace, delete warning, Ctrl-dra
   await expect(cell(sam.oc, 1, 1)).toHaveText("20");
   await expect(cell(sam.oc, 0, 1)).toHaveCount(0);
 });
+
+test("SHEET-07 v0.4.1: undo keeps a newer value, comments on cells, a merge across a frozen pane, merge and wrap on a phone", async ({ browser }) => {
+  test.setTimeout(150_000);
+  const { priya, sam } = await sharedFile(browser, { name: "E2E sheet 5", samRole: "edit" });
+  await newSheet(priya);
+  const page = priya.page;
+  const gridcell = (oc: FrameLocator, r: number, c: number) => grid(oc).getByRole("gridcell").and(cell(oc, r, c));
+
+  // 6a: Priya fills 7 down A1:A3 (one step); Sam changes A2 since; Priya's undo keeps Sam's 9.
+  await cell(priya.oc, 0, 0).click();
+  await page.keyboard.type("7");
+  await page.keyboard.press("Enter");
+  await cell(priya.oc, 0, 0).click();
+  await cell(priya.oc, 2, 0).click({ modifiers: ["Shift"] });
+  await page.keyboard.press("ControlOrMeta+d");
+  await expect(cell(priya.oc, 2, 0)).toHaveText("7");
+  await expect(cell(sam.oc, 2, 0)).toHaveText("7", { timeout: 10_000 });
+  await cell(sam.oc, 1, 0).click();
+  await sam.page.keyboard.type("9");
+  await sam.page.keyboard.press("Enter");
+  await expect(cell(priya.oc, 1, 0)).toHaveText("9", { timeout: 10_000 });
+  await grid(priya.oc).focus();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(priya.oc.getByText("Undid your fill. 1 cell kept Sam Ortiz’s newer value.")).toBeVisible();
+  await expect(cell(priya.oc, 2, 0)).toHaveText("");
+  await expect(cell(priya.oc, 1, 0)).toHaveText("9");
+  await expect(cell(sam.oc, 2, 0)).toHaveText("", { timeout: 10_000 });
+
+  // 6b: a comment from the cell menu; the corner mark; Sam opens it with Ctrl+Alt+M and replies.
+  await cell(priya.oc, 1, 0).click();
+  await cell(priya.oc, 1, 0).click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Comment" }).click();
+  const box = priya.oc.getByRole("dialog", { name: "Comments on A2" });
+  await box.getByRole("textbox", { name: "Comment" }).fill("Is 9 right?");
+  await box.getByRole("textbox", { name: "Comment" }).press("Enter");
+  await expect(box.getByText("Is 9 right?")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(cell(priya.oc, 1, 0)).toHaveClass(/\bcm\b/);
+  await expect(cell(sam.oc, 1, 0)).toHaveClass(/\bcm\b/, { timeout: 10_000 });
+  await cell(sam.oc, 1, 0).click();
+  await sam.page.keyboard.press("ControlOrMeta+Alt+KeyM");
+  const samBox = sam.oc.getByRole("dialog", { name: "Comments on A2" });
+  await expect(samBox.getByText("Priya Shah")).toBeVisible();
+  await samBox.getByRole("textbox", { name: "Reply" }).fill("Yes, two crates.");
+  await samBox.getByRole("button", { name: "Reply" }).click();
+  await sam.page.keyboard.press("Escape");
+  // The thread follows its cell when a row is inserted above (anchored to ids); hover opens it.
+  await grid(priya.oc).locator('[data-hr="0"]').click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Insert 1 row above" }).click();
+  await expect(cell(priya.oc, 2, 0)).toHaveClass(/\bcm\b/);
+  await cell(priya.oc, 2, 0).hover();
+  const moved = priya.oc.getByRole("dialog", { name: "Comments on A3" });
+  await expect(moved.getByText("Yes, two crates.")).toBeVisible();
+  await expect(moved.getByText("Sam Ortiz")).toBeVisible();
+  await cell(priya.oc, 4, 4).click();
+  await expect(moved).toHaveCount(0);
+
+  // A merge that crosses a frozen column: one gridcell, the rest drawn past the pane's edge.
+  await grid(priya.oc).locator('[data-hc="0"]').click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Freeze up to column A" }).click();
+  await cell(priya.oc, 0, 0).click();
+  await page.keyboard.type("Launch budget");
+  await page.keyboard.press("Enter");
+  await cell(priya.oc, 0, 0).click();
+  await cell(priya.oc, 0, 2).click({ modifiers: ["Shift"] });
+  await cell(priya.oc, 0, 0).click({ button: "right" });
+  await priya.oc.getByRole("menuitem", { name: "Merge cells" }).click();
+  await expect(gridcell(priya.oc, 0, 0)).toHaveCount(1);
+  await expect(grid(priya.oc).locator(".ocsh-c.mgx")).toHaveCount(1);
+  const active = await grid(priya.oc).getAttribute("aria-activedescendant");
+  await expect(priya.oc.locator(`[id="${active}"]`)).toHaveCount(1);
+  const ax = await new AxeBuilder({ page }).include(['iframe[name="oc"]', ".ocsh"]).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  expect(ax.violations.map((v) => `${v.id} ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`)).toEqual([]);
+  await expect(gridcell(sam.oc, 0, 0)).toHaveCount(1, { timeout: 10_000 });
+
+  // Phone (9b): the Aa sheet wraps and merges.
+  await page.setViewportSize({ width: 320, height: 700 });
+  await expect(priya.oc.locator(".ocsh.ph")).toBeVisible();
+  await gridcell(priya.oc, 5, 1).click();
+  const aa = async () => {
+    await priya.oc.getByRole("toolbar", { name: "Selection" }).getByRole("button", { name: "Format" }).click();
+    return priya.oc.getByRole("dialog", { name: "Format" });
+  };
+  await (await aa()).getByRole("button", { name: "Wrap text" }).click();
+  await expect(cell(priya.oc, 5, 1)).toHaveClass(/\bwr\b/);
+  await page.keyboard.press("Escape");
+  await gridcell(priya.oc, 5, 1).click();
+  await page.keyboard.press("Shift+ArrowDown");
+  await (await aa()).getByRole("button", { name: "Merge cells" }).click();
+  await expect(cell(priya.oc, 6, 1)).toHaveCount(0);
+  await expect(cell(sam.oc, 6, 1)).toHaveCount(0, { timeout: 10_000 });
+});

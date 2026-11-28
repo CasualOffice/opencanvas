@@ -1286,7 +1286,7 @@ function SpreadsheetView({ node }: ReactNodeViewProps) {
     <NodeViewWrapper className="stubhost wideblock" data-sheet={sheetId}>
       <div contentEditable={false} ref={ref}>
         {linkDb && part.doc ? <Suspense fallback={null}><SheetLinkLazy doc={part.doc} block={sheetId} dbDoc={dbPart.doc} dbId={linkDb} env={part.env} leader={() => isLeader(b)} /></Suspense> : null}
-        {part.doc ? wrap(<Suspense fallback={ph}><SheetBlock doc={part.doc} blockId={sheetId} env={part.env} awareness={b.awareness ?? undefined} /></Suspense>, ph) : ph}
+        {part.doc ? wrap(<Suspense fallback={ph}><SheetBlock doc={part.doc} blockId={sheetId} env={part.env} awareness={b.awareness ?? undefined} chart={ChartLazy} /></Suspense>, ph) : ph}
       </div>
     </NodeViewWrapper>
   );
@@ -1295,6 +1295,8 @@ function SpreadsheetView({ node }: ReactNodeViewProps) {
 // ---------- linked chart (SHEET-06, frame 4h; plain SVG, loaded on demand) ----------
 
 const loadChartBlock = () => import("./chart/ChartBlock").then((m) => ({ default: m.ChartBlock }));
+/** 4h: the same view, floating over a spreadsheet (handed to the sheet; loads on first use). */
+const ChartLazy = lazy(loadChartBlock) as unknown as import("@opencanvas/sheet").SheetChartView;
 
 function ChartView({ node, updateAttributes }: ReactNodeViewProps) {
   const b = useBridge();

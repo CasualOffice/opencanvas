@@ -420,3 +420,82 @@ export function countRefs(doc: Y.Doc, block: string, kind: "rows" | "cols", shee
   });
   return n;
 }
+
+/* ---- comments on cells (SHEET-07, frame 6b) ----
+ * One plain key per comment on the sheet map, `n:<rowId>:<colId>:<commentId>` → JSON
+ * `{ by, name, at, text }`: anchored to row and column ids, so a thread follows its cell through
+ * inserts, moves and sorts, and two people commenting at once never lose one. */
+
+export interface CellComment {
+  id: string;
+  /** Author's user id, and their name when written (shown when the id is no longer known). */
+  by: string;
+  name: string;
+  /** Milliseconds since the epoch. */
+  at: number;
+  text: string;
+}
+
+/** Every thread on the sheet by `rowId:colId`, oldest comment first. */
+export function readComments(doc: Y.Doc, block: string, sheet: string): Map<string, CellComment[]> {
+  const out = new Map<string, CellComment[]>();
+  sheetMap(doc, block, sheet)?.forEach((v, k) => {
+    if (!k.startsWith("n:") || typeof v !== "string") return;
+    const [r, c, id] = k.slice(2).split(":");
+    try {
+      const j = JSON.parse(v) as Partial<CellComment>;
+      if (typeof j.text !== "string") return;
+      const key = `${r}:${c}`;
+      const list = out.get(key) ?? [];
+      list.push({ id, by: String(j.by ?? ""), name: String(j.name ?? ""), at: Number(j.at) || 0, text: j.text });
+      out.set(key, list);
+    } catch {
+      /* a malformed comment is skipped */
+    }
+  });
+  for (const list of out.values()) list.sort((a, b) => a.at - b.at || (a.id < b.id ? -1 : 1));
+  return out;
+}
+
+/** Adds a comment to the cell's thread; returns its id. */
+export function addComment(doc: Y.Doc, block: string, sheet: string, row: string, col: string, c: { by: string; name: string; text: string }, at = Date.now()): string {
+  const id = newId();
+  sheetMap(doc, block, sheet)?.set(`n:${row}:${col}:${id}`, JSON.stringify({ by: c.by, name: c.name, at, text: c.text }));
+  return id;
+}
+
+export function deleteComment(doc: Y.Doc, block: string, sheet: string, row: string, col: string, id: string) {
+  sheetMap(doc, block, sheet)?.delete(`n:${row}:${col}:${id}`);
+}
+
+/* ---- charts floating over the sheet (SHEET-06, frame 4h) ----
+ * `ch:<chartId>` → JSON `{ attrs, row, col }`: the chart block's attributes (the range as row and
+ * column ids) and the cell its top-left corner sits on. */
+
+export interface FloatChart {
+  id: string;
+  attrs: Record<string, unknown>;
+  row: string;
+  col: string;
+}
+
+export function readCharts(doc: Y.Doc, block: string, sheet: string): FloatChart[] {
+  const out: FloatChart[] = [];
+  sheetMap(doc, block, sheet)?.forEach((v, k) => {
+    if (!k.startsWith("ch:") || typeof v !== "string") return;
+    try {
+      const j = JSON.parse(v) as Partial<FloatChart>;
+      if (j.attrs && typeof j.row === "string" && typeof j.col === "string") out.push({ id: k.slice(3), attrs: j.attrs, row: j.row, col: j.col });
+    } catch {
+      /* a malformed chart is skipped */
+    }
+  });
+  return out.sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+export function setChart(doc: Y.Doc, block: string, sheet: string, id: string, v: Omit<FloatChart, "id"> | null) {
+  const s = sheetMap(doc, block, sheet);
+  if (!s) return;
+  if (v) s.set(`ch:${id}`, JSON.stringify(v));
+  else s.delete(`ch:${id}`);
+}

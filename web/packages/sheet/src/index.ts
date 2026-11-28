@@ -6,7 +6,7 @@
 
 export { loadSheetEngine, setEngineSource, EngineError, type EngineSheet, type SheetEngine, type Shown } from "./engine/engine";
 export { createSheetBlock } from "./model";
-export { SheetBlock, SHEET_ORIGIN, type AwarenessLike } from "./SheetBlock";
+export { SheetBlock, SHEET_ORIGIN, type AwarenessLike, type SheetChartView } from "./SheetBlock";
 // SHEET-06: what the linked chart block (4h) and "Open as spreadsheet" (8a) need.
 export { readSheets, blockMap, sheetsRoot } from "./model";
 export { createSheetFrom, linkOf, syncLinked, linkedEdits, HEADER_ROW, LINK_ORIGIN, type LinkedDb } from "./link";

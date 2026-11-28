@@ -8,7 +8,7 @@
 // engine (crates/oc-sheet over WASM); what people type is stored in the Yjs model (model.ts) and
 // every change, local or remote, reaches the engine through one observer.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import * as Y from "yjs";
 import {
@@ -26,6 +26,9 @@ import {
   Euro,
   Funnel,
   Grid2x2,
+  GripVertical,
+  MessageSquare,
+  Trash2,
   Italic,
   Search,
   TableCellsMerge,
@@ -73,6 +76,14 @@ import {
   setMerge,
   setSheetColor,
   sheetsRoot,
+  addComment,
+  deleteComment,
+  newId,
+  readCharts,
+  readComments,
+  setChart,
+  type CellComment,
+  type FloatChart,
   type SheetFilter,
 } from "./model";
 import {
@@ -106,6 +117,7 @@ import {
   type Sel,
 } from "./grid/logic";
 import { injectCss } from "./styles";
+import { undoKeeping } from "./undo";
 import { borderEdges, mergeHits, Pattern, type BorderKind } from "./grid/opencalc";
 
 /** Default sizes, rem (prototype `.ss-r`, `.ss-hr`). */
@@ -116,6 +128,9 @@ const MIN_W = 1.5;
 const MIN_H = 1;
 /** Origin of this block's edits: the undo manager tracks it. */
 export const SHEET_ORIGIN = "oc-sheet";
+/** Origin of the newer values an undo writes back (6a): not tracked, so not a step of its own. */
+const KEEP_ORIGIN = "oc-sheet-keep";
+const STEP_WHAT = "oc-sheet-what";
 
 const TONES = ["gray", "blue", "green", "amber", "red", "purple", "pink"] as const;
 const colour = (v: string | undefined, kind: "fg" | "bg") => (!v ? undefined : (TONES as readonly string[]).includes(v) ? `var(--${v}-${kind})` : v);
@@ -130,11 +145,15 @@ export interface AwarenessLike {
   off(e: "change", f: () => void): void;
 }
 
+/** The chart block's view, given by the editor (loaded on demand) so charts float over the sheet (4h). */
+export type SheetChartView = ComponentType<{ attrs: never; set: (patch: Record<string, unknown>) => void; doc: Y.Doc; dbDoc: Y.Doc | null; env: BlockEnv }>;
+
 interface Props {
   doc: Y.Doc;
   blockId: string;
   env: BlockEnv;
   awareness?: AwarenessLike;
+  chart?: SheetChartView;
 }
 
 interface Edit {
@@ -162,6 +181,8 @@ interface MenuState {
   items?: MenuEntry[] | "row" | "col" | "cell";
   body?: ReactNode;
   label: string;
+  /** Opened by hover: does not take focus. */
+  passive?: boolean;
 }
 
 /** What a copy inside OpenCanvas leaves for its own paste (formulas, styles). */
@@ -241,7 +262,7 @@ function useBlock(doc: Y.Doc, blockId: string, toast: BlockEnv["toast"], onRefLo
           continue;
         }
         if (p[1] === "sheets" && (p[3] === "widths" || p[3] === "heights" || p[3] === "freeze")) continue;
-        if (p[1] === "sheets" && p.length === 3 && [...(ev as Y.YMapEvent<unknown>).keysChanged].every((k) => k === "filter" || k === "color" || k.startsWith("m:") || k.startsWith("h:"))) continue;
+        if (p[1] === "sheets" && p.length === 3 && [...(ev as Y.YMapEvent<unknown>).keysChanged].every((k) => k === "filter" || k === "color" || k.startsWith("m:") || k.startsWith("h:") || k.startsWith("n:") || k.startsWith("ch:"))) continue;
         structural = true;
       }
       if (!mine) return;
@@ -318,7 +339,7 @@ function readView(doc: Y.Doc, block: string, sheet: string): View | null {
 const quoteSheet = (n: string) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(n) ? n : `'${n.replace(/'/g, "''")}'`);
 const POINT_AFTER = /[=(,+\-*/^&<>:;]\s*$/;
 
-export function SheetBlock({ doc, blockId, env, awareness }: Props) {
+export function SheetBlock({ doc, blockId, env, awareness, chart: ChartView }: Props) {
   injectCss();
   const refLost = useRef<((keys: string[]) => void) | null>(null);
   const { version, engine, shown } = useBlock(doc, blockId, env.toast, (k) => refLost.current?.(k));
@@ -343,6 +364,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   const [flash, setFlash] = useState(false);
   const [moveTo, setMoveTo] = useState<{ kind: "r" | "c"; at: number } | null>(null);
   const [tabDrop, setTabDrop] = useState<number | null>(null);
+  /** The open comment thread (6b), by row and column id; `passive` when hover opened it. */
+  const [thread, setThread] = useState<{ r: string; c: string; x: number; y: number; passive: boolean } | null>(null);
+  const hoverT = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** A floating chart being dragged (4h): its offset from where it sits, px. */
+  const [chartDrag, setChartDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   /** Find and replace (4f): the bar's state. Matching is OpenCalc's Pattern. */
   const [find, setFind] = useState<{ q: string; by: string; replace: boolean; mc: boolean; whole: boolean; formulas: boolean; all: boolean } | null>(null);
   const findRef = useRef<HTMLInputElement | null>(null);
@@ -362,13 +388,41 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     return new Y.UndoManager(m, { trackedOrigins: new Set([SHEET_ORIGIN]), captureTimeout: 400 });
   }, [doc, blockId, shared, version === 0]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => void (um && um !== shared && um.destroy()), [um, shared]);
+  /** What the step being written is ("paste", "fill"), kept on its stack item for the undo toast. */
+  const stepWhat = useRef<string | null>(null);
+  useEffect(() => {
+    if (!um) return;
+    const on = (e: { stackItem: { meta: Map<unknown, unknown> }; origin: unknown; type: string }) => {
+      if (e.type === "undo" && e.origin === SHEET_ORIGIN && stepWhat.current) e.stackItem.meta.set(STEP_WHAT, stepWhat.current);
+    };
+    um.on("stack-item-added", on);
+    return () => um.off("stack-item-added", on);
+  }, [um]);
   const act = useCallback(
-    (f: () => void) => {
+    (f: () => void, what?: string) => {
       um?.stopCapturing();
-      doc.transact(f, SHEET_ORIGIN);
+      stepWhat.current = what ?? null;
+      try {
+        doc.transact(f, SHEET_ORIGIN);
+      } finally {
+        stepWhat.current = null;
+      }
     },
     [doc, um],
   );
+  /** 6a: undo your own last step; a cell someone changed since keeps their value, and we say so. */
+  const undo = () => {
+    if (!um || !canEdit) return;
+    const what = (um.undoStack[um.undoStack.length - 1]?.meta.get(STEP_WHAT) as string | undefined) ?? "change";
+    const k = undoKeeping(doc, um, KEEP_ORIGIN);
+    if (!k.cells) return;
+    const names = k.by.map((id) => {
+      const u = awareness?.getStates().get(id)?.user as { name?: string } | undefined;
+      return u?.name ? `${u.name}’s` : "someone else’s";
+    });
+    const who = [...new Set(names)].join(" and ");
+    env.toast(`Undid your ${what}. ${k.cells} ${k.cells === 1 ? "cell" : "cells"} kept ${who} newer ${k.cells === 1 ? "value" : "values"}.`);
+  };
 
   /* ---- geometry (rem) ---- */
   const filter = canEdit ? (sheet ? readFilter(doc, blockId, sheet) : null) : localFilter ?? (sheet ? readFilter(doc, blockId, sheet) : null);
@@ -647,11 +701,11 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         const c = view.cIx.get(cid) ?? -1;
         if (r >= 0 && c >= 0 && inRect(q, r, c) && cell.get("in")) setInput(doc, blockId, view.id, rid, cid, "");
       });
-    });
+    }, "clear");
   };
   const style = (patch: Partial<Record<keyof CellStyle, unknown>>) => {
     if (!view || !canEdit) return;
-    act(() => patchStyle(doc, blockId, view.id, selIds(rectOf(sel)), patch));
+    act(() => patchStyle(doc, blockId, view.id, selIds(rectOf(sel)), patch), "format");
   };
   const borders = (kind: BorderKind) => {
     if (!view || !canEdit) return;
@@ -731,7 +785,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
           setInput(doc, blockId, v.id, v.rows[r], v.cols[c], stored);
           if (withFormats) setStyle(doc, blockId, v.id, v.rows[r], v.cols[c], src.st || nf ? ({ ...(nf ? { nf } : {}), ...(src.st ?? {}) } as Record<string, unknown>) : undefined);
         }
-    });
+    }, "paste");
     select({ anchor: { r: q.r0, c: q.c0 }, focus: { r: q.r1, c: q.c1 } });
     return { h: tile ? q.r1 - q.r0 + 1 : h, w: tile ? q.c1 - q.c0 + 1 : w };
   };
@@ -828,7 +882,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         const sc = from.c0 + ((((c - from.c0) % w) + w) % w);
         setStyle(doc, blockId, view.id, view.rows[r], view.cols[c], styleAt(sr, sc) as Record<string, unknown> | undefined);
       }
-    });
+    }, "fill");
     select({ anchor: { r: to.r0, c: to.c0 }, focus: { r: to.r1, c: to.c1 } }, false);
   };
 
@@ -1061,10 +1115,51 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       for (const m of mergeHere) setMerge(doc, blockId, view.id, view.rows[m.r0], view.cols[m.c0], null);
       setMerge(doc, blockId, view.id, view.rows[q.r0], view.cols[q.c0], [view.rows[q.r1], view.cols[q.c1]]);
     });
-    if (dropped) env.toast(`Merged ${rectA1(q)}; only the top-left value was kept (${dropped} cleared).`, um ? { label: "Undo", run: () => um.undo() } : undefined);
+    if (dropped) env.toast(`Merged ${rectA1(q)}; only the top-left value was kept (${dropped} cleared).`, um ? { label: "Undo", run: undo } : undefined);
     select(at(q.r0, q.c0));
   };
   const freezeTo = (rows: number, cols: number) => view && act(() => setFreeze(doc, blockId, view.id, rows, cols));
+
+  /* ---- comments on cells (6b): a corner mark; hover or Ctrl+Alt+M opens the thread ---- */
+  const comments = useMemo(() => (sheet ? readComments(doc, blockId, sheet) : new Map<string, CellComment[]>()), [doc, blockId, sheet, version]);
+  const threadOf = (r: number, c: number) => (view ? comments.get(`${view.rows[r]}:${view.cols[c]}`) : undefined);
+  const openThread = (r: number, c: number, passive = false) => {
+    if (!view) return;
+    clearTimeout(hoverT.current);
+    const el = gridRef.current?.querySelector<HTMLElement>(`[data-r="${r}"][data-c="${c}"]:not(.mgx)`);
+    const b = (el ?? gridRef.current)?.getBoundingClientRect();
+    if (!b) return;
+    setThread({ r: view.rows[r], c: view.cols[c], x: b.right + 4, y: b.top, passive });
+  };
+  const commentItem = (): MenuItem => {
+    const has = !!threadOf(sel.anchor.r, sel.anchor.c)?.length;
+    return { label: has ? "Show comments" : "Comment", icon: <MessageSquare size={15} />, hint: "Ctrl Alt M", run: () => openThread(sel.anchor.r, sel.anchor.c) };
+  };
+
+  /* ---- charts floating over the sheet (4h): anchored to a cell, they follow the range live ---- */
+  const charts = useMemo(() => (sheet && ChartView ? readCharts(doc, blockId, sheet) : []), [doc, blockId, sheet, version, ChartView]);
+  const putChart = (id: string, patch: Partial<Omit<FloatChart, "id">>) => {
+    if (!view) return;
+    const ch = readCharts(doc, blockId, view.id).find((x) => x.id === id);
+    if (ch) act(() => setChart(doc, blockId, view.id, id, { attrs: patch.attrs ?? ch.attrs, row: patch.row ?? ch.row, col: patch.col ?? ch.col }));
+  };
+  const moveChart = (id: string, r: number, c: number) => view && putChart(id, { row: view.rows[Math.max(0, Math.min(nR - 1, r))], col: view.cols[Math.max(0, Math.min(nC - 1, c))] });
+  const onChartDown = (e: React.PointerEvent, id: string, r: number, c: number) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    drag(
+      (ev) => setChartDrag({ id, dx: ev.clientX - x0, dy: ev.clientY - y0 }),
+      (ev) => {
+        setChartDrag(null);
+        const x = Math.max(0, colOff[c] + (ev.clientX - x0) / rp);
+        const y = Math.max(0, rowOff[r] + (ev.clientY - y0) / rp);
+        if (ev.clientX !== x0 || ev.clientY !== y0) moveChart(id, indexAt(rowOff, y), indexAt(colOff, x));
+      },
+    );
+  };
   const filterOn = (f: SheetFilter | null) => {
     if (!view) return;
     if (canEdit) act(() => setFilter(doc, blockId, view.id, f));
@@ -1130,22 +1225,33 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       ? editCellItems()
       : [
           { label: "Copy", hint: "Ctrl C", run: () => document.execCommand?.("copy") },
+          ...(threadOf(sel.anchor.r, sel.anchor.c)?.length ? [commentItem()] : []),
           "sep",
           filter ? { label: "Remove filter", icon: <Funnel size={15} />, run: () => filterOn(null) } : { label: "Create a filter", icon: <Funnel size={15} />, run: createFilter },
         ];
   // SHEET-06 (4h, 8a): the selection as a linked chart or a new database, placed after the block.
   const rangeIds = () => (view ? { sheetId: blockId, sheet: view.id, r0: view.rows[q.r0], r1: view.rows[q.r1], c0: view.cols[q.c0], c1: view.cols[q.c1] } : null);
-  const chartSel = () => void (rangeIds() && env.sheetActions?.chart(rangeIds()!));
+  const chartSel = () => {
+    const r = rangeIds();
+    if (!r || !view) return;
+    if (!ChartView || !canEdit) return void env.sheetActions?.chart(r);
+    // 4h: the chart floats over the sheet, next to the range; "Copy to canvas" places a block.
+    const id = newId();
+    const attrs = { kind: "bar", title: "", src: "sheet", ...r, dbId: "", groupBy: "", agg: "count", field: "", xLabel: "", yLabel: "", legend: true };
+    act(() => setChart(doc, blockId, view.id, id, { attrs, row: view.rows[q.r0], col: view.cols[Math.min(nC - 1, q.c1 + 2)] }));
+  };
+  const canChart = canEdit && !!(ChartView || env.sheetActions);
   const toDb = () => {
     const r = rangeIds();
     if (!r || !view) return;
     const vals = Array.from({ length: nRows }, (_, i) => Array.from({ length: nCols }, (_, j) => display(q.r0 + i, q.c0 + j)));
     env.sheetActions?.toDatabase(r, vals, view.name);
   };
-  const rangeItems = (): MenuEntry[] =>
-    env.sheetActions
-      ? ["sep", { label: "Chart from selection", icon: <ChartColumn size={15} />, run: chartSel }, { label: "Convert to database", icon: <DatabaseIcon size={15} />, run: toDb }]
-      : [];
+  const rangeItems = (): MenuEntry[] => [
+    ...(canChart || env.sheetActions ? ["sep" as const] : []),
+    ...(canChart ? [{ label: "Chart from selection", icon: <ChartColumn size={15} />, run: chartSel }] : []),
+    ...(env.sheetActions ? [{ label: "Convert to database", icon: <DatabaseIcon size={15} />, run: toDb }] : []),
+  ];
   const editCellItems = (): MenuEntry[] => [
     { label: "Copy", hint: "Ctrl C", run: () => document.execCommand?.("copy") },
     { label: "Cut", hint: "Ctrl X", run: () => document.execCommand?.("cut") },
@@ -1156,6 +1262,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     { label: nCols === 1 ? "Delete column" : "Delete columns", danger: true, run: () => del("c") },
     { label: "Clear", hint: "Delete", run: () => clearRect(q) },
     mergeHere.length ? { label: "Unmerge", run: toggleMerge } : { label: "Merge cells", run: toggleMerge },
+    commentItem(),
     "sep",
     filter ? { label: "Remove filter", icon: <Funnel size={15} />, run: () => filterOn(null) } : { label: "Create a filter", icon: <Funnel size={15} />, run: createFilter },
     fr || fc ? { label: "Unfreeze", icon: <Snowflake size={15} />, run: () => freezeTo(0, 0) } : { label: `Freeze up to ${a1(sel.anchor)}`, icon: <Snowflake size={15} />, run: () => freezeTo(sel.anchor.r, sel.anchor.c) },
@@ -1173,7 +1280,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     const name = readView(doc, blockId, id)?.name ?? "Sheet";
     act(() => deleteSheet(doc, blockId, id));
     if (id === sheet) setSheetSel(null);
-    env.toast(`Deleted “${name}”`, um ? { label: "Undo", run: () => um.undo() } : undefined);
+    env.toast(`Deleted “${name}”`, um ? { label: "Undo", run: undo } : undefined);
   };
   const tabColour = (id: string) => {
     const b = document.querySelector<HTMLElement>(`[data-tab="${id}"]`)?.getBoundingClientRect();
@@ -1209,12 +1316,17 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       toggleFull();
       return;
     }
+    if (mod && e.altKey && e.code === "KeyM") {
+      e.preventDefault();
+      openThread(sel.anchor.r, sel.anchor.c);
+      return;
+    }
     if (mod && !e.altKey && (k === "z" || k === "Z" || k === "y")) {
       e.preventDefault();
       e.stopPropagation();
       if (!canEdit || !um) return;
       if (k === "y" || e.shiftKey) um.redo();
-      else um.undo();
+      else undo();
       return;
     }
     if (mod && (k === "c" || k === "x")) return; // the copy/cut event
@@ -1422,7 +1534,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         n++;
       }
     });
-    env.toast(n ? `Replaced ${n} ${n === 1 ? "cell" : "cells"}.` : "Nothing to replace.", n && um ? { label: "Undo", run: () => um.undo() } : undefined);
+    env.toast(n ? `Replaced ${n} ${n === 1 ? "cell" : "cells"}.` : "Nothing to replace.", n && um ? { label: "Undo", run: undo } : undefined);
   };
   /** The hidden indexes just before `i` (an unhide button's run). */
   const runBefore = (set: Set<number>, i: number) => {
@@ -1431,7 +1543,9 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     return out;
   };
 
-  const cellEl = (r: number, c: number, x0: number) => {
+  /** `cont`: the part of a merge that crosses a frozen pane's edge, drawn in the scrolling pane
+   *  (the anchor, with the value, stays in the frozen pane). One gridcell per merge. */
+  const cellEl = (r: number, c: number, x0: number, cont = false) => {
     const p = { r, c };
     const st = styleAt(r, c);
     const v = display(r, c);
@@ -1459,8 +1573,10 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       if (c === q.c1) cls.push("er");
     }
     if (fq && inRect(fq, r, c) && !inRect(q, r, c)) cls.push("fp");
-    if (fr && r === fr - 1) cls.push("fzr");
-    if (fc && c === fc - 1) cls.push("fzc");
+    if (fr && r === fr - 1 && !cont) cls.push("fzr");
+    if (fc && c === fc - 1 && !cont) cls.push("fzc");
+    if (cont) cls.push("mgx");
+    if (threadOf(r, c)?.length) cls.push("cm");
     const ed = editingHere && edit!.r === r && edit!.c === c;
     if (ed) cls.push("ed");
     const css: CSSProperties = {
@@ -1477,15 +1593,23 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
     return (
       <div
         key={c}
-        id={isAct ? cellId(p) : undefined}
+        id={isAct && !cont ? cellId(p) : undefined}
         className={cls.join(" ")}
         style={css}
-        role="gridcell"
-        aria-colindex={c + 2}
-        aria-selected={inSel}
+        role={cont ? undefined : "gridcell"}
+        aria-hidden={cont || undefined}
+        aria-colindex={cont ? undefined : c + 2}
+        aria-selected={cont ? undefined : inSel}
         data-r={r}
         data-c={c}
         onPointerDown={(e) => onCellDown(e, p)}
+        onPointerEnter={(e) => {
+          if (e.pointerType !== "mouse" || e.buttons) return;
+          clearTimeout(hoverT.current);
+          if (threadOf(r, c)?.length) hoverT.current = setTimeout(() => openThread(r, c, true), 350);
+          else if (thread?.passive) setThread(null);
+        }}
+        onPointerLeave={() => clearTimeout(hoverT.current)}
         onMouseDown={(e) => !(e.target as HTMLElement).closest?.(".ocsh-ce") && e.preventDefault()}
         onDoubleClick={() => {
           if (!canEdit) return;
@@ -1553,11 +1677,15 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       // A merge whose anchor row or column is scrolled away still shows over its visible cells.
       merges.list
         .filter((m) => rows.length && cols.length && !(rows.includes(m.r0) && cols.includes(m.c0)) && rows.some((r) => r >= m.r0 && r <= m.r1) && cols.some((c) => c >= m.c0 && c <= m.c1))
-        .map((m) => (
-          <div key={`m${m.r0}:${m.c0}`} role="row" aria-rowindex={m.r0 + 2} style={{ position: "absolute", left: 0, top: rem(rowOff[m.r0] - y0), height: rem(rowH[m.r0]), width: 0 }}>
-            {cellEl(m.r0, m.c0, x0)}
-          </div>
-        )),
+        .map((m) => {
+          // Its anchor sits in a frozen pane: this is the part past the pane's edge.
+          const cont = (m.c0 < fc && cols[0] >= fc) || (m.r0 < fr && rows[0] >= fr);
+          return (
+            <div key={`m${m.r0}:${m.c0}`} role={cont ? undefined : "row"} aria-rowindex={cont ? undefined : m.r0 + 2} style={{ position: "absolute", left: 0, top: rem(rowOff[m.r0] - y0), height: rem(rowH[m.r0]), width: 0 }}>
+              {cellEl(m.r0, m.c0, x0, cont)}
+            </div>
+          );
+        }),
     );
   const colHead = (c: number, x0: number) => {
     const hl = c >= q.c0 && c <= q.c1;
@@ -1690,17 +1818,17 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
             <div className="ocsh-in" ref={(el) => regY(el, 0)}>{bRows.map((r) => rowHead(r, frozenH))}</div>
           </div>
           {fr && fc ? (
-            <div className="ocsh-pane" style={{ left: rem(RHW), top: rem(HDR), width: rem(frozenW), height: rem(frozenH), pointerEvents: "auto" }}>
+            <div className="ocsh-pane fzc fzr" style={{ left: rem(RHW), top: rem(HDR), width: rem(frozenW), height: rem(frozenH), pointerEvents: "auto" }}>
               {rowsOf(fRows, fCols, 0, 0)}
             </div>
           ) : null}
           {fr ? (
-            <div className="ocsh-pane" style={{ left: rem(RHW + frozenW), top: rem(HDR), right: 0, height: rem(frozenH), pointerEvents: "auto" }}>
+            <div className="ocsh-pane fzr" style={{ left: rem(RHW + frozenW), top: rem(HDR), right: 0, height: rem(frozenH), pointerEvents: "auto" }}>
               <div className="ocsh-in" ref={(el) => regX(el, 1)}>{rowsOf(fRows, bCols, frozenW, 0)}</div>
             </div>
           ) : null}
           {fc ? (
-            <div className="ocsh-pane" style={{ left: rem(RHW), top: rem(HDR + frozenH), width: rem(frozenW), bottom: 0, pointerEvents: "auto" }}>
+            <div className="ocsh-pane fzc" style={{ left: rem(RHW), top: rem(HDR + frozenH), width: rem(frozenW), bottom: 0, pointerEvents: "auto" }}>
               <div className="ocsh-in" ref={(el) => regY(el, 1)}>{rowsOf(bRows, fCols, 0, frozenH)}</div>
             </div>
           ) : null}
@@ -1976,7 +2104,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
   ];
   const toolbar = canEdit ? (
     <div className="ocsh-tb" role="toolbar" aria-label="Formatting">
-      <button className="ocsh-ib" aria-label="Undo" title="Undo (Ctrl Z)" disabled={!um?.canUndo()} onClick={() => um?.undo()}><Undo2 size={15} /></button>
+      <button className="ocsh-ib" aria-label="Undo" title="Undo (Ctrl Z)" disabled={!um?.canUndo()} onClick={undo}><Undo2 size={15} /></button>
       <button className="ocsh-ib" aria-label="Redo" title="Redo (Ctrl Shift Z)" disabled={!um?.canRedo()} onClick={() => um?.redo()}><Redo2 size={15} /></button>
       <i className="ocsh-tbs" />
       <button className="ocsh-ib" aria-label="Format as currency" aria-pressed={cur.nf === "cur"} onClick={() => style({ nf: cur.nf === "cur" ? null : "cur" })}><Euro size={15} /></button>
@@ -2010,12 +2138,9 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       >
         <Snowflake size={15} />
       </button>
-      {env.sheetActions ? (
-        <>
-          <i className="ocsh-tbs" />
-          <button className="ocsh-ib" aria-label="Chart from selection" title="Chart from selection" onClick={chartSel}><ChartColumn size={15} /></button>
-        </>
-      ) : null}
+      <i className="ocsh-tbs" />
+      <button className="ocsh-ib" aria-label="Comment" title="Comment (Ctrl Alt M)" onClick={() => openThread(sel.anchor.r, sel.anchor.c)}><MessageSquare size={15} /></button>
+      {canChart ? <button className="ocsh-ib" aria-label="Chart from selection" title="Chart from selection" onClick={chartSel}><ChartColumn size={15} /></button> : null}
     </div>
   ) : null;
 
@@ -2044,6 +2169,8 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         <button className="ocsh-ib" aria-label="Align left" aria-pressed={cur.al === "l"} onClick={() => style({ al: cur.al === "l" ? null : "l" })}><AlignLeft size={16} /></button>
         <button className="ocsh-ib" aria-label="Align centre" aria-pressed={cur.al === "c"} onClick={() => style({ al: cur.al === "c" ? null : "c" })}><AlignCenter size={16} /></button>
         <button className="ocsh-ib" aria-label="Align right" aria-pressed={cur.al === "r"} onClick={() => style({ al: cur.al === "r" ? null : "r" })}><AlignRight size={16} /></button>
+        <button className="ocsh-ib" aria-label={mergeHere.length ? "Unmerge cells" : "Merge cells"} aria-pressed={!!mergeHere.length} disabled={!mergeHere.length && nRows * nCols < 2} onClick={() => (toggleMerge(), setMenu(null))}><TableCellsMerge size={16} /></button>
+        <button className="ocsh-ib" aria-label="Wrap text" aria-pressed={!!cur.wr} onClick={() => toggle("wr")}><WrapText size={16} /></button>
       </div>
       <div className="ocsh-mcap">Text colour</div>
       {swatches("fg")}
@@ -2107,17 +2234,88 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         </button>
         <button className="ocsh-tbt" onClick={fillDown} disabled={q.r1 === q.r0}>Fill</button>
         <button className="ocsh-tbt" onClick={() => clearRect(q)}>Clear</button>
+        <button className="ocsh-tbt" onClick={() => openThread(sel.anchor.r, sel.anchor.c)}>Comment</button>
         <span className="ocsh-grow" />
         <button className="ocsh-tbt" aria-label="Format" aria-haspopup="dialog" onClick={(e) => pop(e, "Format", aaSheet)}>Aa</button>
       </div>
     ) : null;
 
   const menuEl = menu ? <Menu m={typeof menu.items === "string" ? { ...menu, items: { row: rowItems, col: colItems, cell: cellItems }[menu.items]() } : menu} onClose={(refocus) => (setMenu(null), refocus && gridRef.current?.focus({ preventScroll: true }))} /> : null;
+  const threadEl = (() => {
+    if (!thread || !view) return null;
+    const r = view.rIx.get(thread.r);
+    const c = view.cIx.get(thread.c);
+    if (r == null || c == null) return null;
+    const list = comments.get(`${thread.r}:${thread.c}`) ?? [];
+    const where = a1({ r, c });
+    const body = (
+      <CommentThread
+        cell={where}
+        list={list}
+        canAdd={canEdit}
+        me={env.me.id}
+        nameOf={(cm) => env.person?.(cm.by)?.name || cm.name || "Someone"}
+        onAdd={(text) => act(() => addComment(doc, blockId, view.id, thread.r, thread.c, { by: env.me.id, name: env.me.name, text }))}
+        onDelete={(id) => act(() => deleteComment(doc, blockId, view.id, thread.r, thread.c, id))}
+      />
+    );
+    return <Menu m={{ x: thread.x, y: thread.y, label: `Comments on ${where}`, body, passive: thread.passive }} onClose={(refocus) => (setThread(null), refocus && gridRef.current?.focus({ preventScroll: true }))} />;
+  })();
+  const chartLayer =
+    ChartView && charts.length ? (
+      <div className="ocsh-chl" style={{ left: rem(RHW), top: rem(HDR) }}>
+        <div className="ocsh-in" ref={(el) => regX(el, 2)}>
+          <div className="ocsh-in" ref={(el) => regY(el, 2)}>
+            {charts.map((ch) => {
+              const r = view.rIx.get(ch.row);
+              const c = view.cIx.get(ch.col);
+              if (r == null || c == null) return null;
+              const d = chartDrag?.id === ch.id ? chartDrag : null;
+              const range = { sheetId: blockId, sheet: view.id, r0: String(ch.attrs.r0 ?? ""), r1: String(ch.attrs.r1 ?? ""), c0: String(ch.attrs.c0 ?? ""), c1: String(ch.attrs.c1 ?? "") };
+              return (
+                <div key={ch.id} className={"ocsh-chart" + (d ? " drag" : "")} data-chart-id={ch.id} style={{ left: `calc(${rem(colOff[c])} + ${d?.dx ?? 0}px)`, top: `calc(${rem(rowOff[r])} + ${d?.dy ?? 0}px)` }}>{/* px-ok: pointer offset */}
+                  {canEdit ? (
+                    <div className="ocsh-chbar">
+                      <button
+                        className="ocsh-ib"
+                        aria-label="Move chart"
+                        title="Drag, or use the arrow keys, to move the chart"
+                        onPointerDown={(e) => onChartDown(e, ch.id, r, c)}
+                        onKeyDown={(e) => {
+                          const dir = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+                          if (!dir) return;
+                          e.preventDefault();
+                          moveChart(ch.id, r + dir[0], c + dir[1]);
+                        }}
+                      >
+                        <GripVertical size={14} />
+                      </button>
+                      <span className="ocsh-grow" />
+                      {env.sheetActions ? <button className="ocsh-btn" onClick={() => env.sheetActions!.chart(range)}>Copy to canvas</button> : null}
+                      <button className="ocsh-ib" aria-label="Delete chart" onClick={() => (act(() => setChart(doc, blockId, view.id, ch.id, null)), gridRef.current?.focus())}><Trash2 size={14} /></button>
+                    </div>
+                  ) : null}
+                  <Suspense fallback={<div className="ocsh-load">Loading chart…</div>}>
+                    <ChartView attrs={ch.attrs as never} set={(patch) => putChart(ch.id, { attrs: { ...ch.attrs, ...patch } })} doc={doc} dbDoc={null} env={env} />
+                  </Suspense>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    ) : null;
+  const gridArea = (
+    <div className="ocsh-gw">
+      {grid}
+      {chartLayer}
+    </div>
+  );
   const noteEl = note ? (
     <div className="ocsh-note" role="status">
       <span>{note.text}</span>
       {note.values ? <button className="ocsh-btn" onClick={() => (note.values!(), setNote(null))}>Paste values only</button> : null}
-      {um ? <button className="ocsh-btn" onClick={() => (um.undo(), setNote(null), gridRef.current?.focus())}>Undo</button> : null}
+      {um ? <button className="ocsh-btn" onClick={() => (undo(), setNote(null), gridRef.current?.focus())}>Undo</button> : null}
       <button className="ocsh-ib" aria-label="Dismiss" onClick={() => setNote(null)}><X size={14} /></button>
     </div>
   ) : null;
@@ -2139,7 +2337,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
             {fxBar}
             {findBar}
             {insertKeys}
-            {grid}
+            {gridArea}
             {actionBar}
             <div className="ocsh-sb">{tabs}{aggEl}</div>
             {noteEl}
@@ -2147,6 +2345,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
           document.body,
         )}
         {menuEl}
+        {threadEl}
       </>
     );
 
@@ -2159,7 +2358,7 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
         <span className="ocsh-grow" />
         {canEdit ? null : <span className="ocsh-tbt"><Lock size={13} /> View only</span>}
         {phone ? null : aggEl}
-        {canEdit && env.sheetActions ? (
+        {canChart ? (
           <button className="ocsh-ib" aria-label="Chart from selection" title="Chart from selection" onClick={chartSel}>
             <ChartColumn size={15} />
           </button>
@@ -2171,11 +2370,78 @@ export function SheetBlock({ doc, blockId, env, awareness }: Props) {
       {fxBar}
       {findBar}
       {insertKeys}
-      {grid}
+      {gridArea}
       {actionBar}
       {phone ? <div className="ocsh-sb">{tabs}{aggEl}</div> : null}
       {noteEl}
       {menuEl}
+      {threadEl}
+    </div>
+  );
+}
+
+const ago = (t: number) => {
+  const m = Math.round((Date.now() - t) / 60_000);
+  if (m < 1) return "now";
+  if (m < 60) return `${m} min`;
+  if (m < 60 * 24) return `${Math.round(m / 60)} h`;
+  return new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+};
+const initials = (n: string) =>
+  n
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("") || "?";
+
+/** A cell's comment thread (6b): oldest first, then a reply box. */
+function CommentThread({ cell, list, canAdd, me, nameOf, onAdd, onDelete }: { cell: string; list: CellComment[]; canAdd: boolean; me: string; nameOf: (c: CellComment) => string; onAdd: (text: string) => void; onDelete: (id: string) => void }) {
+  const [draft, setDraft] = useState("");
+  const send = () => {
+    const t = draft.trim();
+    if (!t) return;
+    onAdd(t);
+    setDraft("");
+  };
+  return (
+    <div className="ocsh-th">
+      {list.length ? (
+        <ul>
+          {list.map((c) => {
+            const name = nameOf(c);
+            return (
+              <li key={c.id} className="ocsh-cmt">
+                <span className="ocsh-av" aria-hidden="true">{initials(name)}</span>
+                <div className="ocsh-cmb">
+                  <div className="ocsh-cmh">
+                    <b>{name}</b>
+                    <small>{ago(c.at)}</small>
+                    {canAdd && c.by === me ? <button className="ocsh-ib" aria-label="Delete comment" onClick={() => onDelete(c.id)}><Trash2 size={13} /></button> : null}
+                  </div>
+                  <p>{c.text}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="ocsh-cm0">No comments on {cell} yet.</p>
+      )}
+      {canAdd ? (
+        <div className="ocsh-cmf">
+          <input
+            aria-label={list.length ? "Reply" : "Comment"}
+            placeholder={list.length ? "Reply" : "Add a comment"}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) (e.preventDefault(), send());
+            }}
+          />
+          <button className="ocsh-btn p" disabled={!draft.trim()} onClick={send}>{list.length ? "Reply" : "Comment"}</button>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2230,8 +2496,8 @@ function Menu({ m, onClose }: { m: MenuState; onClose: (refocus: boolean) => voi
     if (!el) return;
     const b = el.getBoundingClientRect();
     setPos({ x: Math.max(8, Math.min(m.x, innerWidth - b.width - 8)), y: Math.max(8, Math.min(m.y, innerHeight - b.height - 8)) });
-    (el.querySelector<HTMLElement>('[role="menuitem"],input,button') ?? el).focus();
-  }, [m.x, m.y, m.label]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!m.passive) (el.querySelector<HTMLElement>('[role="menuitem"],input,button') ?? el).focus();
+  }, [m.x, m.y, m.label, m.passive]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const down = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose(false);

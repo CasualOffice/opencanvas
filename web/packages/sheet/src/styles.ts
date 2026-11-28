@@ -140,6 +140,34 @@ export const CSS = `
 .ocsh-knob::before{content:"";position:absolute;inset:-.9375rem}
 .ocsh-knob.tl{left:-.4375rem;top:-.4375rem}.ocsh-knob.br{right:-.4375rem;bottom:-.4375rem}
 .ocsh-mcap{font-size:.75rem;font-weight:600;color:var(--fg-3);padding:.375rem .625rem 0}
+/* v0.4.1: merges past a frozen pane's edge, the pane's edge line */
+.ocsh-pane.fzc::after{content:"";position:absolute;top:0;bottom:0;right:0;width:2px;background:var(--line-2);z-index:2;pointer-events:none}
+.ocsh-pane.fzr::before{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--line-2);z-index:2;pointer-events:none}
+/* comments on cells (6b) */
+.ocsh-c.cm:not(.err)::before{content:"";position:absolute;top:0;right:0;border-top:.5rem solid var(--amber-fg);border-left:.5rem solid transparent;z-index:1}
+.ocsh-th{width:19rem;max-width:100%;padding:.25rem}
+.ocsh-th ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.625rem;max-height:18rem;overflow:auto}
+.ocsh-cmt{display:flex;gap:.5rem;align-items:flex-start}
+.ocsh-av{flex:none;width:1.75rem;height:1.75rem;border-radius:50%;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-size:.6875rem;font-weight:600}
+.ocsh-cmb{flex:1;min-width:0}
+.ocsh-cmh{display:flex;align-items:center;gap:.375rem;min-height:1.75rem}
+.ocsh-cmh small{color:var(--fg-3);font-size:.75rem}
+.ocsh-cmh .ocsh-ib{margin-left:auto;width:1.75rem;height:1.75rem}
+.ocsh-cmb p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}
+.ocsh-cm0{margin:.25rem .25rem .5rem;color:var(--fg-3)}
+.ocsh-cmf{display:flex;gap:.375rem;margin-top:.625rem}
+.ocsh-cmf input{flex:1;min-width:0;height:2rem;padding:0 .5rem;border-radius:.5rem;border:0;box-shadow:inset 0 0 0 1px var(--line-2);background:var(--app)}
+.ocsh-cmf .ocsh-btn:disabled{opacity:.5;cursor:default}
+/* charts floating over the sheet (4h) */
+.ocsh-gw{position:relative;display:flex;flex-direction:column;flex:none;min-height:0}
+.ocsh-full .ocsh-gw{flex:1}
+.ocsh-chl{position:absolute;right:0;bottom:0;overflow:hidden;pointer-events:none;z-index:5}
+.ocsh-chart{position:absolute;width:28rem;max-width:calc(100vw - 4rem);pointer-events:auto;border-radius:.875rem;background:var(--app);box-shadow:var(--sh-pop)}
+.ocsh-chart.drag{opacity:.85;cursor:grabbing}
+.ocsh-chart .occh{margin:0;box-shadow:none}
+.ocsh-chbar{display:flex;align-items:center;gap:.25rem;padding:.25rem .375rem 0}
+.ocsh-chbar .ocsh-ib:first-child{cursor:grab;touch-action:none}
+.ocsh-chart .ocsh-load{height:9rem}
 @media (max-width:45em){
   .ocsh-nb{width:4rem}
   .ocsh-tb{border-radius:.625rem}
