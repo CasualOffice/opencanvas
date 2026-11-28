@@ -169,6 +169,8 @@ test("PERM-02: file, database, board and export controls per role", async ({ bro
     await board.click({ position: { x: 40, y: 40 } });
     const pen = await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name: "Pen" }).count();
     await s.getByRole("button", { name: "More options" }).click();
+    // The top bar menus load after first paint (WEB-08): wait for the menu before counting.
+    await expect(s.locator(".pop .mi").first()).toBeVisible({ timeout: 10_000 });
     const exports = await s.locator(".pop .mi").filter({ hasText: /\.(md|html|docx|pdf|ocanvas|json)$/ }).count();
     await sam.page.keyboard.press("Escape");
     seen[role] = { rename, del, addField, newRow, pen, exports };
