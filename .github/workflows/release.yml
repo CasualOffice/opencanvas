@@ -5,7 +5,8 @@
 # linux/arm64, built natively on each architecture, no emulation) at
 # ghcr.io/casualoffice/opencanvas:<version>, and standalone Linux binaries (with the editor
 # bundle, LICENSE and NOTICE) attached to the GitHub release with SHA-256 checksums. Both carry
-# build-provenance attestations. Pre-releases never get the `latest` tag.
+# build-provenance attestations. CycloneDX SBOMs for the Rust server and the web packages are
+# attached too (DEP-01, docs/38 §5). Pre-releases never get the `latest` tag.
 #
 # Runs on a pushed tag, or by hand for an existing tag (workflow_dispatch, input `tag`).
 name: release
@@ -127,6 +128,38 @@ jobs:
           path: web/packages/editor/dist
           retention-days: 1
 
+  # CycloneDX SBOMs from the tagged lockfiles: the server's crates (cargo-cyclonedx) and the web
+  # packages' production dependencies (cdxgen reads pnpm-lock.yaml). Tool versions are pinned.
+  sbom:
+    runs-on: ubuntu-24.04
+    container: rust:1.98-bookworm
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: "${{ env.TAG }}" }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - name: Rust SBOM
+        run: |
+          cargo install --locked cargo-cyclonedx --version 0.5.10
+          cargo cyclonedx --format json --spec-version 1.5
+          mkdir -p sbom
+          f=crates/oc-server/oc-server.cdx.json
+          test -s "$f" || { echo "no $f; written:"; find . -name '*.cdx.json' -not -path './target/*'; exit 1; }
+          cp "$f" "sbom/opencanvas-${TAG}-rust.cdx.json"
+      - name: npm SBOM
+        run: |
+          npx -y @cyclonedx/cdxgen@12.9.0 -t js --required-only --no-install-deps --spec-version 1.6 \
+            -o "sbom/opencanvas-${TAG}-web.cdx.json" web
+          node -e 'const b=require(process.argv[1]); if (b.bomFormat!=="CycloneDX"||!(b.components||[]).length) process.exit(1)' \
+            "$PWD/sbom/opencanvas-${TAG}-web.cdx.json"
+      - name: Checksums
+        run: cd sbom && for f in *.cdx.json; do sha256sum "$f" > "$f.sha256"; done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom/*
+          retention-days: 1
+
   binary:
     needs: web
     strategy:
@@ -170,11 +203,13 @@ jobs:
           retention-days: 1
 
   publish:
-    needs: [manifest, binary]
+    needs: [manifest, binary, sbom]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
         with: { pattern: "binary-*", path: assets, merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { name: sbom, path: assets }
       - name: Attach the binaries and the image reference to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -197,6 +232,10 @@ jobs:
               echo "## Binaries"
               echo
               echo "Standalone Linux builds (x86_64, aarch64) with the editor bundle, LICENSE and NOTICE are attached below, each with a SHA-256 checksum. Images and archives carry build-provenance attestations (\`gh attestation verify\`)."
+              echo
+              echo "## Software bill of materials"
+              echo
+              echo "CycloneDX SBOMs for the server's crates (\`*-rust.cdx.json\`) and the web packages (\`*-web.cdx.json\`) are attached, with checksums. Update policy: docs/38-DEPENDENCY-UPDATES.md."
             } >> body.md
             gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file body.md
           fi

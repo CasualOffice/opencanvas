@@ -17,10 +17,15 @@ import {
   Strikethrough, Table, TextQuote, Trash2, Type, Underline, Undo2, Upload, UserPlus, UserRound, Users, Workflow,
   Zap, Baseline, CalendarPlus, Minimize2, ZoomIn, ZoomOut, ChevronLeft, MoveVertical, RefreshCw, RectangleHorizontal,
   ChartColumn, Pilcrow, FileSearch, Kanban, Heading, Columns4, PanelLeft, Boxes, Split, AppWindow, CornerDownRight, FileStack, FileX, ImageOff, Puzzle, SquareDashed, Building2, Radio,
+  CirclePlay, FileArchive, FileAudio, FileCode, FileImage, FileSpreadsheet, FileVideo, Globe, ImagePlus, Link2, Maximize2, Paperclip,
   type LucideIcon,
 } from "lucide-react";
 
 export const EXTRA: Record<string, LucideIcon> = {
+  // Also registered by the atom block views (atomviews.tsx); here for menus that may open first.
+  "file-archive": FileArchive, "file-audio": FileAudio, "file-code": FileCode, "file-image": FileImage, "file-video": FileVideo,
+  "file-spreadsheet": FileSpreadsheet, "image-plus": ImagePlus, "circle-play": CirclePlay, "maximize-2": Maximize2,
+  paperclip: Paperclip, "link-2": Link2, globe: Globe,
   // Insert menu (INS-01).
   "file-search": FileSearch,
   "chart-column": ChartColumn,

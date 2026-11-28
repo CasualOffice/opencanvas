@@ -28,7 +28,6 @@ import { isMac } from "./lib/keys";
 import { aiAvailability, aiStore, openAssistant } from "./lib/assistant";
 import { usePeers, type Peer } from "./lib/presence";
 import { People, setPeople } from "./lib/people";
-import { PersonCards } from "./components/PersonCard";
 import { connectCollab, fetchSession, readLaunch, SessionError, type Collab, type Session } from "./lib/session";
 import { DIAGRAM_FORMATS, importFormats, importOpenStore, importStore, openImport } from "./lib/importflag";
 import { exportBoardText } from "./lib/boardexport";
@@ -37,7 +36,7 @@ import { toast, useStore } from "./lib/store";
 import { restoredText } from "./lib/restored";
 import { DocHeader } from "./components/DocHeader";
 import type { ImportResult } from "./components/Dialogs";
-import { Modal, ModalHead, Popover, ShellCtx, Toasts } from "./components/overlay";
+import { ShellCtx, Toasts } from "./components/overlay";
 import { TopBar, type SaveState } from "./components/TopBar";
 import { leaveGuard, offlineView, patchView, reconnectToken } from "./offline/status";
 import { showsGallery, temporaryWording, wordingOf } from "./lib/wording";
@@ -68,6 +67,14 @@ const AutomationPanel = lazy(() => import("./automation/AutomationPanel").then((
 const SearchAll = lazy(() => import("./search/SearchAll").then((m) => ({ default: m.SearchAll })));
 // LIVE-06: `<open-canvas view="block">`, the compact embed of one live file.
 const BlockEmbed = lazy(() => import("./live/embed"));
+// WEB-08 budget: the workspace's modals and the database "Automate" menu (fetched after first
+// paint, so they show at once when needed).
+const workspaceModals = () => import("./components/WorkspaceModals");
+const ReplaceConfirm = lazy(() => workspaceModals().then((m) => ({ default: m.ReplaceConfirm })));
+const ConflictModal = lazy(() => workspaceModals().then((m) => ({ default: m.ConflictModal })));
+const ClosedModal = lazy(() => workspaceModals().then((m) => ({ default: m.ClosedModal })));
+const AutomateMenu = lazy(() => workspaceModals().then((m) => ({ default: m.AutomateMenu })));
+const PersonCards = lazy(() => import("./components/PersonCard").then((m) => ({ default: m.PersonCards })));
 const blockView = () => new URLSearchParams(window.location.hash.replace(/^#/, "")).get("view") === "block";
 
 /** A downgrade whose unsynced edits the server refused: the client starts over and the next
@@ -261,6 +268,14 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
   const [forcedReadOnly, setForcedReadOnly] = useState(false);
   const [roleChanged, setRoleChanged] = useState(() => !demo && peekDowngraded(session.room) && session.role !== "edit");
   useEffect(() => clearDowngraded(session.room), [session.room]);
+  // The modals and person cards load right after first paint (WEB-08), ready before they show.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void workspaceModals().catch(() => undefined);
+      void import("./components/PersonCard").catch(() => undefined);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, []);
   // Had more than view access at some point in this Workspace (or the one before a reboot).
   const everEdited = useRef(session.role !== "view" || roleChanged);
   if (role !== "view") everEdited.current = true;
@@ -1434,35 +1449,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
                 </div>
               </div>
               {dbMenu ? (
-                <Popover anchor={dbMenu.anchor} onClose={() => setDbMenu(null)} title="Automate" minWidth={260}>
-                  {rulesOf(dbMenu.dbId).map((r) => (
-                    <button key={r.id} className="mi" onClick={() => (setDbMenu(null), setSide("automations"))}>
-                      <Ic name="zap" />
-                      {r.name}
-                      <span className="mk">{r.on ? "On" : "Off"}</span>
-                    </button>
-                  ))}
-                  {rulesOf(dbMenu.dbId).length ? <div className="msep" /> : null}
-                  {([["row.added", "When a row is added…"], ["field.changed", "When a field changes…"], ["date.reached", "On a date in this database…"]] as const).map(([k, label]) => (
-                    <button
-                      key={k}
-                      className="mi"
-                      onClick={() => {
-                        const id = dbMenu.dbId;
-                        setDbMenu(null);
-                        window.dispatchEvent(new CustomEvent("oc:automate", { detail: { trigger: { kind: k, database: id } } }));
-                      }}
-                    >
-                      <Ic name="plus" />
-                      {label}
-                    </button>
-                  ))}
-                  <div className="msep" />
-                  <button className="mi" onClick={() => (setDbMenu(null), setSide("automations"))}>
-                    <Ic name="zap" />
-                    Open Automations
-                  </button>
-                </Popover>
+                <Suspense fallback={null}>
+                  <AutomateMenu anchor={dbMenu.anchor} dbId={dbMenu.dbId} rules={rulesOf(dbMenu.dbId)} onClose={() => setDbMenu(null)} onOpen={() => (setDbMenu(null), setSide("automations"))} />
+                </Suspense>
               ) : null}
               {searchAll && searchOn ? (
                 <Suspense fallback={null}>
@@ -1552,7 +1541,9 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
             </Suspense>
           ) : null}
           <Toasts />
-          <PersonCards root={root} people={people} />
+          <Suspense fallback={null}>
+            <PersonCards root={root} people={people} />
+          </Suspense>
 
           <Suspense fallback={null}>
           {csv ? (
@@ -1582,104 +1573,22 @@ function Workspace({ session, collab, demo, onReboot }: { session: Session; coll
             />
           ) : null}
           </Suspense>
-          {confirmTpl ? (
-            <Modal onClose={() => (setConfirmTpl(null), setConfirmTeam(false))} label="Replace canvas">
-              <ModalHead
-                title="Replace this canvas?"
-                sub={confirmTeam ? "Everyone here sees the change right away. You can undo it from the message that follows." : `Everyone here sees the change right away. You can undo it with ${isMac ? "⌘Z" : "Ctrl+Z"}.`}
-                icon="layout-template"
-                tone="amber"
+          <Suspense fallback={null}>
+            {confirmTpl ? (
+              <ReplaceConfirm
+                team={confirmTeam}
+                onCancel={() => (setConfirmTpl(null), setConfirmTeam(false))}
+                onReplace={() => {
+                  const f = confirmTpl;
+                  setConfirmTpl(null);
+                  setConfirmTeam(false);
+                  f();
+                }}
               />
-              <div className="mft" style={{ paddingTop: 18 }}>
-                <button className="btn ghost" data-autofocus onClick={() => (setConfirmTpl(null), setConfirmTeam(false))}>
-                  Cancel
-                </button>
-                <button
-                  className="btn primary"
-                  onClick={() => {
-                    const f = confirmTpl;
-                    setConfirmTpl(null);
-                    setConfirmTeam(false);
-                    f();
-                  }}
-                >
-                  Replace content
-                </button>
-              </div>
-            </Modal>
-          ) : null}
-          {conflict?.open && !closed ? (
-            <Modal onClose={() => setConflict({ ...conflict, open: false })} label="Canvas changed">
-              <ModalHead title={`This canvas changed in ${hostName}`} sub="Someone replaced the file from outside this session." icon="triangle-alert" tone="amber" />
-              <div className="mbd">
-                <div className="callout" style={{ margin: 0 }} data-tone="green">
-                  <span className="cic tone-green">
-                    <Ic name="copy" />
-                  </span>
-                  <div style={{ fontSize: ".8438rem", lineHeight: 1.55 }}>
-                    {conflict.policy === "copy" ? (
-                      <>
-                        Your edits are safe. They were saved as <b>“{copyName}”</b> in {hostName}. This canvas is read-only now.
-                      </>
-                    ) : (
-                      <>Your edits up to now are kept in this session. Reload to continue from the version in {hostName}.</>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="mft">
-                <button className="btn ghost" onClick={() => setConflict({ ...conflict, open: false })}>
-                  Keep reading
-                </button>
-                {conflict.policy === "copy" && conflict.url ? (
-                  <button className="btn primary" onClick={openCopy}>
-                    Open the copy
-                  </button>
-                ) : (
-                  <button className="btn primary" onClick={() => window.location.reload()}>
-                    Reload
-                  </button>
-                )}
-              </div>
-            </Modal>
-          ) : null}
-          {closed !== null ? (
-            <Modal onClose={() => undefined} dismissable={false} label="Canvas closed">
-              {closed.kind === "revoked" ? (
-                temporary && words.revokedTitle ? (
-                  <ModalHead title={words.revokedTitle} sub={words.revokedSub ?? ""} icon="lock" tone="gray" />
-                ) : (
-                  <ModalHead title="Your access to this canvas changed" sub={`${hostName} no longer lets you open this canvas. Ask the owner if you need it.`} icon="lock" tone="gray" />
-                )
-              ) : temporary ? (
-                <ModalHead title={words.endedTitle} sub={words.endedSub} icon="trash-2" tone="gray" />
-              ) : (
-                <ModalHead
-                  title={`${hostName} closed this canvas`}
-                  sub={(closed.reason && closed.kind === "other" ? closed.reason.replace(/^./, (c) => c.toUpperCase()) + ". " : "") + "Everything up to now was saved."}
-                  icon="lock"
-                  tone="gray"
-                />
-              )}
-              {temporary ? (
-                closed.kind !== "revoked" && words.startNew ? (
-                  <div className="mft" style={{ paddingTop: 18 }}>
-                    {/* MX S6a: the host opens a fresh canvas (the Matrix widget reloads itself). */}
-                    <button className="btn primary" onClick={() => postToHost("UI_StartNew", {})}>
-                      <Ic name="plus" size={15} />
-                      {words.startNew}
-                    </button>
-                  </div>
-                ) : null
-              ) : (
-                <div className="mft" style={{ paddingTop: 18 }}>
-                  <button className="btn primary" onClick={() => postToHost("UI_Close", {})}>
-                    Back to {hostName}
-                  </button>
-                </div>
-              )}
-            </Modal>
-          ) : null}
+            ) : null}
+            {conflict?.open && !closed ? <ConflictModal policy={conflict.policy} url={conflict.url} hostName={hostName} copyName={copyName} onKeep={() => setConflict({ ...conflict, open: false })} onOpenCopy={openCopy} /> : null}
+            {closed !== null ? <ClosedModal closed={closed} temporary={temporary} words={words} hostName={hostName} /> : null}
+          </Suspense>
         </div>
       </BridgeCtx.Provider>
     </ShellCtx.Provider>

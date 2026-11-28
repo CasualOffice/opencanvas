@@ -231,6 +231,10 @@ documents (ADR-001). Support is best effort, with no SLA.
 - Charts: closed on main for v0.4.1: a browser test for database charts and the live database ⇄ spreadsheet view; the chart floats over the sheet.
 - Timeline: closed on main for v0.4.1: Workload reassigns by dragging; Months grouping on phones; Timeline and Workload are in the insert menu. On a phone, reassigning still uses the select.
 - The slow-host save drill ran on SQLite; the MySQL run is pending. DEP-01 still needs the SBOM and update policy.
+- Spreadsheet: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
+- Charts: no browser test yet for database charts and the live database ⇄ spreadsheet view; the chart is placed after the sheet, not floating over it.
+- Timeline: Workload reassigns through a select, not by dragging; no Months grouping on phones; Timeline is not in the insert menu.
+- The slow-host save drill now passes on SQLite and MySQL 8.4; SBOMs and the update policy (DEP-01) are in place since 2026-11-28 (for v0.4.1).
 - Benchmarks marked `local` ran on a developer laptop, not the reference machine.
 
 ## 4. Release checklist
@@ -6076,6 +6080,11 @@ URL: https://canvas.casualoffice.org/docs/benchmarks.html
 Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
+
+## CRASH-SAVE — 2026-11-28-crash-drill-save-mysql84-local
+
+- **Run:** 2026-11-28, commit `c8f0554`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `mysql 8.4.13`
+
 
 ## BROWSER — 2026-11-26-browser-local-partial
 

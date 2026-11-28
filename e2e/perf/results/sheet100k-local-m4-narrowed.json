@@ -1,0 +1,26 @@
+{
+  "scenario": "SHEET100K",
+  "at": "2026-11-28T01:38:00Z",
+  "label": "local-m4-narrowed",
+  "bench": "cargo test --release -p oc-sheet --test bench_100k -- --ignored --nocapture",
+  "machine": {
+    "cpu": "Apple M4",
+    "cores": 10,
+    "memGB": 16,
+    "os": "Darwin 25.3.0",
+    "loadBefore": [3.4, 4.3, 3.8]
+  },
+  "mix": "one sheet, 100,000 rows: A = n, B = A*2 on every row, C1 = SUM(B1:B100000) (200,001 cells, stored with id references); open = Book::open; edit = set A50000 and answer the changed displays (Book::set), the first edit after open; next = set A50001 (graphs already built). Native release build, one thread, no network, no Yjs.",
+  "change": "Book::set reads back only the cells the edit can change (crates/oc-sheet/src/deps.rs: opencalc's precedents, transitively; volatile, INDIRECT/OFFSET, names, open ranges and 3-D references always read; everything while a spilled array exists) and the workbook recalculates incrementally after open (automatic mode) instead of in full.",
+  "runs": [
+    {"openMs": 273, "editMs": 67, "nextEditMs": 12},
+    {"openMs": 276, "editMs": 68, "nextEditMs": 13},
+    {"openMs": 285, "editMs": 67, "nextEditMs": 13}
+  ],
+  "before": {
+    "sameLoad": "the previous engine.rs, same machine and load, same bench: open 274/277/283 ms, edit 103/104/104 ms, next edit 104/104/103 ms",
+    "recorded": "sheet100k-local-m4.json (load 9-11): edit 257/284/258 ms"
+  },
+  "budget": {"openS": 30, "editS": 3, "nextEditMs": 500},
+  "notes": "The first edit builds both dependency graphs (opencalc's and the block's); later edits pay only the recalculation of what changed (here the 100,000-cell SUM) and the reads of the 3 changed cells. Three runs, taken before the owner asked for one run per bench."
+}

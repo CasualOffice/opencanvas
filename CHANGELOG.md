@@ -26,6 +26,23 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 - Spreadsheet: a merge that crosses a frozen pane's edge is one grid cell (it was two, with the
   same id), and the frozen pane's edge line shows through it.
+### Changed
+
+- One edit in a large spreadsheet is much faster: only the cells it can change are read back,
+  and the workbook recalculates incrementally (100,000 rows: about 100 ms before, 12 ms after
+  the first edit).
+- The editor's first screen loads less code (initial JS 299.3 → 288.5 KB gzip): the file, image,
+  link card and embed views, the top bar menus, mention and paste menus, dialogs and pickers load
+  on their own.
+
+### Security
+
+- Every release carries CycloneDX SBOMs for the server's crates and the web packages. The
+  dependency update policy is written down in [docs/38](docs/38-DEPENDENCY-UPDATES.md).
+
+### Verified
+
+- The crash drill with a slow host passes at full size on MySQL 8.4 as well as SQLite.
 
 ## [0.4.0] - 2026-11-28
 

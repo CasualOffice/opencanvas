@@ -10,11 +10,12 @@
 //! recalculated. The output is each cell's display text (`12.5`, `#DIV/0!`, `$1,200.00`).
 //! Values are never written back to the document (ADR-078's rule).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use casual_calc_model::Id;
 use casual_calc_sdk::{CellRef, EditOperation, Sheet, SheetId, WorkbookSession};
 
+use crate::deps::{Deps, Key};
 use crate::refs::{self, Grid, MemGrid};
 
 /// One sheet of a block, as stored.
@@ -60,6 +61,14 @@ pub struct Book {
     session: WorkbookSession,
     /// `(sheet index, row id, col id)` → what it shows, for every cell with an input.
     shown: BTreeMap<(usize, String, String), String>,
+    /// Which formula cells read which cells, built on the first edit (a one-off computation,
+    /// such as an export, never needs it).
+    deps: Option<Deps>,
+    /// Cells with an input that anchor a spilled array or show `#SPILL!`. While there is one,
+    /// an edit reads every cell: what a spill covers is not in the dependency edges.
+    spills: BTreeSet<Key>,
+    /// How many cells the last edit read again (tests).
+    last_reads: usize,
 }
 
 impl std::fmt::Debug for Book {
@@ -93,6 +102,9 @@ impl Book {
             grid,
             session,
             shown: BTreeMap::new(),
+            deps: None,
+            spills: BTreeSet::new(),
+            last_reads: 0,
         };
         let cells: Vec<(usize, String, String, String)> = book
             .sheets
@@ -110,6 +122,9 @@ impl Book {
             }
         }
         book.session.recalculate();
+        // From here on an edit recalculates only what it affects (opencalc keeps its graph).
+        book.session
+            .set_calculation_mode(casual_calc_sdk::CalculationMode::Automatic);
         book.refresh();
         Ok(book)
     }
@@ -144,9 +159,66 @@ impl Book {
         Ok(true)
     }
 
+    /// Where a cell is now, as an engine key (`None` once its row or column is gone).
+    fn key_of(&self, k: usize, rid: &str, cid: &str) -> Option<Key> {
+        let sid = &self.sheets[k].id;
+        Some((
+            k,
+            self.grid.row_index(sid, rid)?,
+            self.grid.col_index(sid, cid)?,
+        ))
+    }
+
+    /// Whether a cell anchors a spill or is blocked from spilling.
+    fn spilling(&self, key: Key, text: &str) -> bool {
+        text == "#SPILL!"
+            || self
+                .session
+                .workbook()
+                .sheets
+                .get(key.0)
+                .and_then(|s| {
+                    s.cells.get(CellRef {
+                        row: key.1,
+                        col: key.2,
+                    })
+                })
+                .is_some_and(|c| c.flags.contains(casual_calc_model::CellFlags::SPILL_ANCHOR))
+    }
+
+    /// Reads one cell's display again; `Some` when it changed.
+    fn reread(&mut self, k: usize, rid: &str, cid: &str) -> Option<Shown> {
+        let key = self.key_of(k, rid, cid)?;
+        let now = self.session.cell_display(
+            k,
+            CellRef {
+                row: key.1,
+                col: key.2,
+            },
+        );
+        if self.spilling(key, &now) {
+            self.spills.insert(key);
+        } else {
+            self.spills.remove(&key);
+        }
+        let text = self.shown.get_mut(&(k, rid.to_string(), cid.to_string()))?;
+        if *text == now {
+            return None;
+        }
+        *text = now.clone();
+        Some(Shown {
+            sheet: self.sheets[k].id.clone(),
+            row: rid.to_string(),
+            col: cid.to_string(),
+            text: now,
+        })
+    }
+
     /// Reads every cell's display again; returns the ones that changed.
     fn refresh(&mut self) -> Vec<Shown> {
         let mut changed = Vec::new();
+        self.last_reads = self.shown.len();
+        self.spills.clear();
         for ((k, rid, cid), text) in self.shown.iter_mut() {
             let sid = &self.sheets[*k].id;
             let (Some(row), Some(col)) =
@@ -155,6 +227,9 @@ impl Book {
                 continue;
             };
             let now = self.session.cell_display(*k, CellRef { row, col });
+            if now == "#SPILL!" {
+                self.spills.insert((*k, row, col));
+            }
             if *text != now {
                 *text = now.clone();
                 changed.push(Shown {
@@ -164,6 +239,71 @@ impl Book {
                     text: now,
                 });
             }
+        }
+        for (k, sheet) in self.session.workbook().sheets.iter().enumerate() {
+            for (at, cell) in sheet.cells.iter() {
+                if cell
+                    .flags
+                    .contains(casual_calc_model::CellFlags::SPILL_ANCHOR)
+                {
+                    self.spills.insert((k, at.row, at.col));
+                }
+            }
+        }
+        changed
+    }
+
+    /// Reads again only the cells an edit of `at` can have changed: the cell, the formulas that
+    /// read it (transitively) and those whose precedents cannot be known in advance. While a
+    /// spilled array exists it recalculates and reads everything, as before: what a spill covers
+    /// (and blocks) is in neither opencalc's incremental graph nor ours.
+    fn refresh_from(&mut self, at: Option<Key>) -> Vec<Shown> {
+        if !self.spills.is_empty() {
+            self.session.recalculate();
+            return self.refresh();
+        }
+        let wb = self.session.workbook();
+        let deps = self.deps.get_or_insert_with(|| {
+            let cells: Vec<Key> = self
+                .shown
+                .keys()
+                .filter_map(|(k, rid, cid)| {
+                    let sid = &self.sheets[*k].id;
+                    Some((
+                        *k,
+                        self.grid.row_index(sid, rid)?,
+                        self.grid.col_index(sid, cid)?,
+                    ))
+                })
+                .collect();
+            Deps::build(wb, cells.into_iter())
+        });
+        if let Some(at) = at {
+            deps.repoint(wb, at);
+        }
+        let affected = deps.affected(at.as_slice());
+        let mut read: Vec<(usize, String, String)> = affected
+            .into_iter()
+            .filter_map(|(k, row, col)| {
+                let s = &self.sheets[k];
+                Some((
+                    k,
+                    s.rows.get(row as usize)?.clone(),
+                    s.cols.get(col as usize)?.clone(),
+                ))
+            })
+            .filter(|key| self.shown.contains_key(key))
+            .collect();
+        read.sort();
+        self.last_reads = read.len();
+        let mut changed: Vec<Shown> = read
+            .into_iter()
+            .filter_map(|(k, rid, cid)| self.reread(k, &rid, &cid))
+            .collect();
+        // A new spill can cover cells other formulas read: everything once more.
+        if !self.spills.is_empty() {
+            self.session.recalculate();
+            changed.extend(self.refresh());
         }
         changed
     }
@@ -184,16 +324,18 @@ impl Book {
         if !stored.is_empty() {
             cells.push((rid.to_string(), cid.to_string(), stored.to_string()));
         }
-        if self.enter(k, rid, cid, stored, false)? {
+        let at = if self.enter(k, rid, cid, stored, false)? {
             let key = (k, rid.to_string(), cid.to_string());
             if stored.is_empty() {
                 self.shown.remove(&key);
             } else {
                 self.shown.entry(key).or_default();
             }
-        }
-        self.session.recalculate();
-        let mut changed = self.refresh();
+            self.key_of(k, rid, cid)
+        } else {
+            None
+        };
+        let mut changed = self.refresh_from(at);
         if stored.is_empty() {
             changed.push(Shown {
                 sheet: sheet.to_string(),
@@ -486,5 +628,84 @@ mod tests {
                 .iter()
                 .any(|s| s.row == "b2" && s.col == "x1" && s.text.is_empty())
         );
+    }
+
+    /// The stored form of `input` typed at `a1` on sheet `k` (one-letter columns).
+    fn stored_at(
+        sheets: &[BookSheet],
+        k: usize,
+        a1: &str,
+        input: &str,
+    ) -> (String, String, String) {
+        let grid = grid_of(sheets);
+        let (col, row) = a1.split_at(1);
+        let c = (col.as_bytes()[0] - b'A') as usize;
+        let r: usize = row.parse::<usize>().unwrap() - 1;
+        let stored = refs::to_ids(input, &sheets[k].id, &grid);
+        (sheets[k].rows[r].clone(), sheets[k].cols[c].clone(), stored)
+    }
+
+    fn sorted(mut v: Vec<Shown>) -> Vec<Shown> {
+        v.sort_by(|x, y| (&x.sheet, &x.row, &x.col).cmp(&(&y.sheet, &y.row, &y.col)));
+        v
+    }
+
+    #[test]
+    fn an_edit_reads_only_the_cells_it_can_change() {
+        let mut book = Book::open(launch_budget()).unwrap();
+        book.set("sb", "b2", "x1", "100").unwrap();
+        // The quantity itself, its cost (C3), the total (C4) and the two Summary cells that read
+        // the total; not the other nine cells with an input.
+        assert_eq!(book.last_reads, 5);
+    }
+
+    /// Edits of every kind the narrowed read must follow, each checked against the whole
+    /// workbook computed from scratch: the values agree and every changed cell was answered.
+    #[test]
+    fn narrowed_reads_match_a_full_recompute() {
+        let mut book = Book::open(launch_budget()).unwrap();
+        let edits: Vec<(usize, &str, &str)> = vec![
+            // Formulas the dependency walk cannot see through: always read.
+            (2, "C1", "=INDIRECT(\"Rates!B1\")*2"),
+            (2, "C2", "=SUM(OFFSET(Budget!B1,1,0,2,1))"),
+            (2, "C3", "=SUM(Budget!B:B)"),
+            (1, "B1", "5000"),
+            (0, "B3", "7"),
+            // A formula pointed elsewhere: the old precedent no longer reaches it, the new one does.
+            (0, "C2", "=B2*10"),
+            (0, "B2", "3"),
+            (1, "B1", "4100"),
+            // A cleared precedent and a cleared formula.
+            (0, "B2", ""),
+            (0, "C4", ""),
+            (0, "C4", "=SUM(C2:C3)+Rates!B2"),
+            (1, "B2", "40"),
+            // A spill, blocked and freed.
+            (0, "E1", "=SEQUENCE(3)"),
+            (0, "E2", "x"),
+            (0, "D1", "=E3+1"),
+            (0, "E2", ""),
+            (0, "E1", "=SEQUENCE(4)*2"),
+        ];
+        for (k, a1, input) in edits {
+            let before = sorted(book.values());
+            let (rid, cid, stored) = stored_at(&book.sheets, k, a1, input);
+            let sid = book.sheets[k].id.clone();
+            let changed = book.set(&sid, &rid, &cid, &stored).unwrap();
+            let after = sorted(book.values());
+            assert_eq!(
+                after,
+                sorted(compute(&book.sheets).unwrap()),
+                "after {a1} = {input}"
+            );
+            for v in &after {
+                let was = before
+                    .iter()
+                    .find(|b| (&b.sheet, &b.row, &b.col) == (&v.sheet, &v.row, &v.col));
+                if was.map(|b| &b.text) != Some(&v.text) {
+                    assert!(changed.contains(v), "{a1} = {input}: {v:?} not answered");
+                }
+            }
+        }
     }
 }
