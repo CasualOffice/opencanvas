@@ -1,9 +1,9 @@
 # 27 — v0.2 design plan: portable live blocks, block SDK, headless API
 
-**Status:** v0.2.0 prepared, 2026-11-25 (REL-04, [docs/32](32-RELEASE-v0.2.0.md)). Built: the
-headless API (HAPI-01..08), webhooks (WH-01), version history, the block SDK data side
-(BSDK-01/02/05). In progress before the tag: BSDK-03/04, host editor profiles (EDP-01) and block
-discovery metadata. Live blocks moved to v0.3. Proposed 2026-11-23. ADRs 039–042 (Proposed) in
+**Status:** Released in v0.2.0, 2026-11-25 (REL-04, [docs/32](32-RELEASE-v0.2.0.md)): the
+headless API (HAPI-01..08), webhooks (WH-01), version history, the block SDK (BSDK-01..06),
+host editor profiles (EDP-01) and block discovery metadata. Live blocks moved to v0.3 and
+shipped in v0.3.0. Proposed 2026-11-23. ADRs 039–042 (Proposed) in
 [docs/08](08-ADR-REGISTER.md); tracker rows in [docs/10](10-EXECUTION-TRACKER.md) §P3.
 **Scope:** the three P0 features of v0.2 in [docs/09](09-ROADMAP.md#feature-priorities).
 **Not in scope:** offline-first editing, search and automation (v0.3; version history and webhooks moved into v0.2, §0);

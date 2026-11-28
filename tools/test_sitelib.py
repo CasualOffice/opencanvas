@@ -108,5 +108,56 @@ class SharedPartsAndTitles(unittest.TestCase):
         self.assertEqual(sitelib.page_title(page, "404.html"), "Changelog")
 
 
+def _roadmap():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("build_roadmap", os.path.join(os.path.dirname(__file__), "build-roadmap.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class Roadmap(unittest.TestCase):
+    """The roadmap page shows each phase's state from its rows, the Workspace track, the
+    Backlog status and the release table's statuses (tools/build-roadmap.py)."""
+
+    br = _roadmap()
+
+    def test_backlog_is_ranked_like_todo_and_labelled_backlog(self):
+        self.assertEqual(self.br.status_of("Backlog"), "Backlog")
+        self.assertEqual(self.br.RANK["Backlog"], self.br.RANK["Todo"])
+        self.assertEqual(self.br.LABEL["Backlog"][1], "Backlog")
+
+    def test_a_phase_state_follows_its_rows(self):
+        rows = lambda *s: [{"status": x} for x in s]  # noqa: E731
+        st = self.br.phase_state
+        self.assertEqual(st(rows("Done", "Done")), ("done", "Done"))
+        self.assertEqual(st(rows("Done", "Review")), ("done", "Built, in review"))
+        self.assertEqual(st(rows("Done", "Todo")), ("progress", "In progress"))
+        self.assertEqual(st(rows("Todo", "Backlog")), ("later", "Planned"))
+
+    def test_release_statuses(self):
+        rs = self.br.release_state
+        self.assertEqual(rs("Released 2026-11-24 (notes)"), ("done", "Released 2026-11-24"))
+        self.assertEqual(rs("In progress (parallel track)"), ("progress", "In progress (parallel track)"))
+        self.assertEqual(rs("Planned"), ("later", "Planned"))
+        with self.assertRaises(SystemExit):
+            rs("Soon")
+
+    def test_the_tracker_has_the_workspace_track_and_p3_releases(self):
+        rows = self.br.tracker()
+        ws = {r["id"]: r for r in rows["WS"]}
+        self.assertEqual(ws["WS-07"]["status"], "Backlog")
+        self.assertEqual(ws["WS-01"]["status"], "Done")
+        groups = [r["group"] for r in rows["P3"]]
+        self.assertIn("v0.2", groups)
+        self.assertIn("v0.5", groups)
+
+    def test_the_page_shows_release_statuses_and_the_workspace_track(self):
+        page = self.br.render()
+        self.assertIn("Workspace track", page)
+        self.assertIn("pill-done", page.split('id="rel-h"')[1].split("</table>")[0])
+        self.assertNotIn("Plugin ecosystem, developer tooling", page)
+
+
 if __name__ == "__main__":
     unittest.main()

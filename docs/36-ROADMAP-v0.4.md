@@ -1,8 +1,9 @@
 # 36 — v0.4 design plan: partial sync, benchmarks, performance and maturity
 
-**Status:** Proposed 2026-11-26. The owner set the direction the same day and sharpened it: v0.4's
+**Status:** Released in v0.4.0, 2026-11-28 ([docs/37](37-RELEASE-v0.4.0.md)), with v0.4.1 the same day; the partial-sync
+remainder (PSYNC-BUG-2/3) is v0.4.2. Planned 2026-11-26. The owner set the direction the same day and sharpened it: v0.4's
 main thrust is **performance and partial synchronization**, as a broader benchmark, performance and
-maturity release. ADRs 076–079 (Proposed) in [docs/08](08-ADR-REGISTER.md); tracker rows in
+maturity release. ADRs 076–079 (Accepted 2026-11-26) in [docs/08](08-ADR-REGISTER.md); tracker rows in
 [docs/10](10-EXECUTION-TRACKER.md) §P3 v0.4. Prototypes (V4UI-01, §7) gate every UI row (ADR-011).
 **Scope:** the v0.4 line of [docs/09](09-ROADMAP.md#release-roadmap).
 **Not in scope:** a plugin marketplace, server-side third-party code and enterprise hardening

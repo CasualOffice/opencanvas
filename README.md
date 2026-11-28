@@ -168,10 +168,13 @@ Your app  ── signs launch token (who, which file, which role) ──▶ Open
 
 ## Releases and roadmap
 
-The latest release is [0.4.0](docs/37-RELEASE-v0.4.0.md) (2026-11-28); every version is in the
-[CHANGELOG](CHANGELOG.md). Next: v0.4.1 closes the spreadsheet, chart and Timeline gaps in the
-release notes; v0.5 brings a plugin ecosystem, developer tooling and enterprise hardening
-([roadmap](docs/09-ROADMAP.md)). Support is best-effort, with no production SLA.
+The latest release is 0.4.1 (2026-11-28), which closed the spreadsheet, chart and Timeline gaps
+in the [0.4.0 release notes](docs/37-RELEASE-v0.4.0.md); every version is in the
+[CHANGELOG](CHANGELOG.md). Next: v0.4.2 finishes partial sync (spreadsheets as parts, the first
+screen under 2 s); v0.5 brings plugins with a marketplace, backlinks, a knowledge graph and SDK
+extension points; OpenCanvas Workspace, a first-party host, is a parallel track; v0.6 is advanced
+automation and app building ([roadmap](docs/09-ROADMAP.md)). Support is best-effort, with no
+production SLA.
 
 ## Documentation
 

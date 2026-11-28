@@ -5,7 +5,7 @@
 <section class="hero" aria-labelledby="hero-h">
   <div class="wrap">
     <div class="hero-copy">
-      <a class="release-pill" href="changelog.html"><b>0.4.0</b><span>Spreadsheets, charts, Timeline, partial sync</span>{{icon:arrow-right:14}}</a>
+      <a class="release-pill" href="changelog.html"><b>0.4.1</b><span>Cell comments, floating charts, faster sheets</span>{{icon:arrow-right:14}}</a>
       <span class="eyebrow eyebrow--dot">OpenCanvas by CasualOffice</span>
       <h1 id="hero-h">A live canvas inside your app. <span class="soft">Your files stay yours.</span></h1>
       <p class="lede">OpenCanvas is the open-source collaborative workspace engine you embed, the way apps embed Collabora: documents, spreadsheets, databases, whiteboards, diagrams and Gantt charts in one canvas, with live cursors. Your application keeps the users, the permissions and the file. OpenCanvas does the editing, merges every change live, and saves the file back to you on its own.</p>
@@ -492,7 +492,7 @@ OC_KEK=&lt;same on every node&gt;</code></pre>
       <p>More in the <a href="docs/faq.html">documentation FAQ</a>.</p>
     </div>
     <div class="faq reveal reveal-d1">
-      <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div data-answer><p>The current release has best-effort support and no production SLA. Review the <a href="docs/release-040.html#3-known-limitations-v041">known limitations</a> before committing it to a production workflow.</p></div></details>
+      <details><summary>Can I use it in production today?{{icon:chevron-down}}</summary><div data-answer><p>The current release has best-effort support and no production SLA. Review the <a href="docs/release-040.html#3-known-limitations">known limitations</a> before committing it to a production workflow.</p></div></details>
       <details><summary>What does the licence allow?{{icon:chevron-down}}</summary><div data-answer><p>OpenCanvas is open source under the Apache-2.0 licence. You may use, modify, self-host, embed and redistribute it, in open or closed, commercial or non-commercial products. When you redistribute it, keep the NOTICE file. The <a href="https://github.com/CasualOffice/opencanvas/blob/main/LICENSE">LICENSE</a> file has the exact terms.</p></div></details>
       <details><summary>Does OpenCanvas keep my documents?{{icon:chevron-down}}</summary><div data-answer><p>Only while a session is live. The server keeps a snapshot and the recent updates so it can survive a restart and let late joiners catch up, and deletes them after the session is saved and idle. The file itself lives in your app.</p></div></details>
       <details><summary>How do users sign in?{{icon:chevron-down}}</summary><div data-answer><p>They sign in to your app, not to OpenCanvas. Your backend checks access and signs a short-lived launch token naming the file, the user and the role; OpenCanvas trusts that decision for the life of the token and enforces it on every edit.</p></div></details>
