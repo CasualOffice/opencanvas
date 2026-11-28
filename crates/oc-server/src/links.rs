@@ -292,6 +292,7 @@ fn view_grant(host: &HostConfig, user_id: &str, file_id: &str, token: &str) -> G
             id: file_id.to_string(),
             name: file_id.to_string(),
             version: None,
+            app: None,
         },
         perms: Perms::default(),
         callback_token: token.to_string(),
