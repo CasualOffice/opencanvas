@@ -23,6 +23,7 @@ import AutoLayout, { type LayoutView } from "./layout/AutoLayout";
 import { useBudget } from "./Budget";
 import ExportDialog from "./export/ExportDialog";
 import { PeerNotice } from "./Presence";
+import { inkOn } from "../presence/awareness";
 
 const SW = 1.75;
 
@@ -190,7 +191,7 @@ export default function DiagramShell(p: DiagramShellProps) {
         {budget.chip}
         <ul className="ocdg-people" aria-label={`${people.length} ${people.length === 1 ? "person" : "people"} here`}>
           {people.slice(0, 5).map((u) => (
-            <li key={u.id} className="ocdg-av" style={{ background: u.color }} title={u.id === -1 ? `${u.name} (you)` : u.name}>
+            <li key={u.id} className="ocdg-av" style={{ background: u.color, color: inkOn(u.color) }} title={u.id === -1 ? `${u.name} (you)` : u.name}>
               <span aria-hidden="true">{initials(u.name)}</span>
               <span className="ocdg-sr">{u.id === -1 ? `${u.name} (you)` : u.name}</span>
             </li>

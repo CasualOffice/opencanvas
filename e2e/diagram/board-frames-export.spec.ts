@@ -59,6 +59,31 @@ test("decision 11: an emptied board shows hints and starters; a starter is one U
   await expect(empty.getByRole("heading", { name: "Start your board" })).toBeVisible();
 });
 
+test("decision 12: Ravi's named cursor and avatar; Follow tracks his view until a zoom stops it", async ({ page }) => {
+  const board = await openDemo(page, srv.url);
+  // The demo's Ravi is on the board (cursor and viewport in awareness).
+  await expect(board.locator(".ocbd-cursor").filter({ hasText: "Ravi Menon" })).toHaveCount(1);
+  const av = board.getByRole("group", { name: "People on this board" }).getByRole("button", { name: "Ravi Menon" });
+  await av.click();
+  const menu = board.getByRole("menu", { name: "Ravi Menon" });
+  await expect(menu.getByRole("menuitem", { name: "Go to cursor" })).toBeEnabled();
+  await menu.getByRole("menuitem", { name: "Follow" }).click();
+  await expect(board.locator(".ocbd-follow")).toContainText("Following Ravi Menon");
+  // His viewport is centred at (430, 200), zoom 1: that board point is in the middle of ours.
+  const svg = (await board.locator("svg.ocbd-svg").boundingBox())!;
+  const t = await board.locator("svg.ocbd-svg > g[transform]").getAttribute("transform");
+  const [, tx, ty, z] = t!.match(/translate\(([-\d.]+) ([-\d.]+)\) scale\(([-\d.]+)\)/)!.map(Number);
+  expect(z).toBe(1);
+  expect(Math.abs(tx! + 430 - svg.width / 2)).toBeLessThan(2);
+  expect(Math.abs(ty! + 200 - svg.height / 2)).toBeLessThan(2);
+  // A zoom of our own stops following.
+  await page.mouse.move(svg.x + svg.width / 2, svg.y + svg.height / 2);
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, -200);
+  await page.keyboard.up("Control");
+  await expect(board.locator(".ocbd-follow")).toHaveCount(0);
+});
+
 async function tool(board: Locator, name: string) {
   await board.getByRole("toolbar", { name: "Board tools" }).getByRole("button", { name, exact: true }).click();
 }

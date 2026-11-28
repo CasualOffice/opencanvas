@@ -31,6 +31,9 @@ import { anchorPoint, ANCHORS, resolveArrow, syncArrows, viaOf, type Anchor, typ
 import { ExportMenuItems, useBoardExport } from "./export/hooks";
 import { useFrames } from "./frames/hooks";
 import { EmptyBoard, insertTemplate } from "./empty/EmptyBoard";
+import { useFollow, usePeers } from "./presence/hooks";
+import { Avatars, Cursors, FollowBanner, ensurePresenceStyles } from "./presence/view";
+import { inkOn, viewport } from "./presence/awareness";
 import { FrameNames, FrameView } from "./frames/view";
 import { FRAME_SIZE, isFrame, membersOf } from "./frames/model";
 import { applyMembership, createFrame, releaseMembers } from "./frames/ops";
@@ -106,7 +109,6 @@ const ZMIN = 0.1, ZMAX = 4;
 const CULL_AT = 300;
 
 interface View { tx: number; ty: number; z: number }
-interface Peer { id: number; name: string; color: string; x: number | null; y: number | null; sel: string[] }
 
 /** "Snap to objects" (decision 9): a personal setting, on by default, kept per device. */
 const SNAP_KEY = "oc.board.snap";
@@ -141,31 +143,6 @@ const CLIP_ATTR = "data-oc-board";
 function useShapes(doc: Y.Doc, boardId: string): Shape[] | null {
   const proj = useMemo(() => new BoardProjection(doc, boardId), [doc, boardId]);
   return useSyncExternalStore(proj.subscribe, proj.get, proj.get);
-}
-
-function usePeers(awareness: Awareness | undefined, boardId: string): Peer[] {
-  const [peers, setPeers] = useState<Peer[]>([]);
-  useEffect(() => {
-    if (!awareness) return;
-    const read = () => {
-      const out: Peer[] = [];
-      awareness.getStates().forEach((st, id) => {
-        if (id === awareness.clientID || !st) return;
-        const b = st.board as { id?: string; x?: number; y?: number; sel?: unknown } | null | undefined;
-        if (!b || b.id !== boardId) return;
-        const hasPt = typeof b.x === "number" && typeof b.y === "number";
-        const sel = Array.isArray(b.sel) ? b.sel.filter((x): x is string => typeof x === "string").slice(0, 200) : [];
-        if (!hasPt && !sel.length) return;
-        const u = (st.user ?? {}) as { name?: string; color?: string };
-        out.push({ id, name: String(u.name ?? "Someone"), color: String(u.color ?? "var(--u2)"), x: hasPt ? b.x! : null, y: hasPt ? b.y! : null, sel });
-      });
-      setPeers(out);
-    };
-    read();
-    awareness.on("change", read);
-    return () => awareness.off("change", read);
-  }, [awareness, boardId]);
-  return peers;
 }
 
 /* ========================================================== component */
@@ -382,7 +359,9 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const publishNow = (sel: string[]) => {
     if (!awareness) return;
     const p = lastPt.current;
-    const next = p ? { id: boardId, x: Math.round(p[0] * 10) / 10, y: Math.round(p[1] * 10) / 10, sel } : sel.length ? { id: boardId, sel } : null;
+    // Decision 12: the viewport too (so others can follow), once the pointer or focus is here.
+    const vp = here.current ? { vp: viewport(S.current.view, sizeRef.current) } : {};
+    const next = p ? { id: boardId, x: Math.round(p[0] * 10) / 10, y: Math.round(p[1] * 10) / 10, sel, ...vp } : sel.length || vp.vp ? { id: boardId, sel, ...vp } : null;
     const cur = awareness.getLocalState()?.board;
     if (!next && !cur) return;
     awareness.setLocalStateField("board", next);
@@ -398,6 +377,44 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     cancelAnimationFrame(cursorRaf.current);
     if (awareness?.getLocalState()?.board) awareness.setLocalStateField("board", null);
   }, [awareness]);
+  // Decision 12: this board is "here" once the pointer or focus enters it; its viewport then goes
+  // into awareness (throttled), unless another board on the page has taken the field since.
+  const here = useRef(false);
+  const sizeRef = useRef<[number, number]>([0, 0]);
+  sizeRef.current = size;
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || !awareness) return;
+    const enter = () => {
+      if (here.current) return;
+      here.current = true;
+      publishNow(S.current.sel);
+    };
+    el.addEventListener("pointerenter", enter);
+    el.addEventListener("focusin", enter);
+    return () => {
+      el.removeEventListener("pointerenter", enter);
+      el.removeEventListener("focusin", enter);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awareness]);
+  useEffect(() => {
+    if (!awareness || !here.current) return;
+    const cur = awareness.getLocalState()?.board as { id?: string } | null | undefined;
+    if (cur && cur.id !== boardId) return void (here.current = false);
+    const t = setTimeout(() => publishNow(S.current.sel), 120);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, size, awareness]);
+  const follow = useFollow(peers, view, size, setView);
+  ensurePresenceStyles();
+  const goToPeer = (pid: number) => {
+    const p = peers.find((q) => q.id === pid);
+    if (p?.x == null || p.y == null) return;
+    const z = S.current.view.z;
+    setView({ z, tx: sizeRef.current[0] / 2 - p.x * z, ty: sizeRef.current[1] / 2 - p.y * z });
+    setLive(`Showing ${p.name}'s cursor`);
+  };
 
   const setSel = (ids: string[]) => {
     const cur = S.current.sel;
@@ -1829,7 +1846,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const mod = e.metaKey || e.ctrlKey;
     const k = e.key.toLowerCase();
     if (e.key === "Escape") {
-      if (S.current.wp !== null) {
+      if (follow.following) {
+        follow.stop();
+        setLive("Stopped following");
+      } else if (S.current.wp !== null) {
         setWp(null);
         setLive("Connector selected");
       } else if (menu) setMenu(false);
@@ -2449,7 +2469,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         })}
         <g transform={`translate(${u[0] - 4} ${u[1] - 4}) scale(${1 / z})`}>
           <rect x={0} y={-18} width={Math.min(140, p.name.length * 6.4 + 12)} height={17} rx={4} fill={p.color} />
-          <text x={6} y={-6} fontSize={11} fontWeight={600} fill="#fff">{p.name.length > 20 ? p.name.slice(0, 19) + "…" : p.name}</text>
+          <text x={6} y={-6} fontSize={11} fontWeight={600} fill={inkOn(p.color)}>{p.name.length > 20 ? p.name.slice(0, 19) + "…" : p.name}</text>
         </g>
       </g>,
     );
@@ -2765,20 +2785,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ) : null}
           {marquee ? <rect className="ocbd-marquee" x={marquee[0]} y={marquee[1]} width={marquee[2] - marquee[0]} height={marquee[3] - marquee[1]} fill="var(--accent-soft)" fillOpacity={0.5} stroke="var(--accent)" strokeWidth={1 / z} pointerEvents="none" /> : null}
         </g>
-        <g pointerEvents="none">
-          {peers.map((p) => {
-            if (p.x === null || p.y === null) return null;
-            const px = p.x * z + tx, py = p.y * z + ty;
-            const w = Math.min(160, p.name.length * 6.6 + 16);
-            return (
-              <g key={p.id} transform={`translate(${px.toFixed(1)} ${py.toFixed(1)})`} style={{ transition: "transform 80ms linear" }}>
-                <path d="M0 0 L5.5 15 L8 8.5 L14.5 6 Z" fill={p.color} stroke="var(--app)" strokeWidth="1.2" strokeLinejoin="round" />
-                <rect x="12" y="15" width={w} height="20" rx="6" fill={p.color} />
-                <text x="20" y="29" fontSize="11.5" fontWeight="600" fill="#fff">{p.name.length > 22 ? p.name.slice(0, 21) + "…" : p.name}</text>
-              </g>
-            );
-          })}
-        </g>
+        <Cursors peers={peers} view={view} />
       </svg>
       {dgm && Dg && dp.rulers ? <Dg.Rulers view={view} size={size} span={sel.length ? unionBox(selShapes()) : null} /> : null}
       <div className="ocbd-sr" role="status" aria-live="polite">{live}</div>
@@ -2799,7 +2806,17 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
         />
       ) : null}
 
+      {follow.following ? <FollowBanner peer={follow.following} onStop={follow.stop} /> : null}
       <div className="ocbd-top">
+        <Avatars
+          peers={peers}
+          following={follow.following?.id ?? null}
+          onFollow={(pid) => {
+            follow.follow(pid);
+            setLive(`Following ${peers.find((q) => q.id === pid)?.name ?? "them"}. Press Escape to stop`);
+          }}
+          onGoTo={goToPeer}
+        />
         {edit ? (
           <>
             <button className="ocbd-ib" title="Undo (Ctrl+Z)" aria-label="Undo" aria-keyshortcuts="Control+Z Meta+Z" disabled={!um?.undoStack.length} onClick={() => undo()}>

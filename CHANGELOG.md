@@ -21,6 +21,10 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 - Whiteboard: an empty board shows how to start (draw, double-click to type, N for a sticky note,
   F for a frame, ? for all shortcuts) and three starters: Retrospective, Flowchart and Brainstorm,
   each one Undo step. People who can only view see "This board is empty" (BRD-23).
+- Whiteboard: working together. Others' cursors carry their name (it fades after a few seconds
+  still), their selections show in their colour, and their avatars sit at the top of the board:
+  pick one to Follow their view or Go to their cursor. Panning, zooming or Esc stops following.
+  Only awareness is used, never the document (BRD-24).
 
 ## [0.4.3] - 2026-11-28
 
