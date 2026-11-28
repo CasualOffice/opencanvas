@@ -1,0 +1,669 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Backlinks and linked references</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Review page of numbered frames; each frame is the real OpenCanvas editor at a fixed size. Tokens match the approved v0.4 prototypes (databases.html, timeline.html). rem for type and spacing (ADR-050); breakpoints in em. */
+:root{--page:#f1f1ef;--app:#ffffff;--panel:#fbfbfa;--sunk:#f4f4f2;--pop:#ffffff;--hover:rgba(24,24,32,.045);--press:rgba(24,24,32,.08);--line:rgba(24,24,32,.085);--line-2:rgba(24,24,32,.15);--fg:#18181b;--fg-2:#55555e;--fg-3:#8b8b95;--fg-4:#b3b3bb;--accent:#2a5ad7;--accent-soft:#ecf1fd;--accent-ring:rgba(42,90,215,.28);--accent-fg:#fff;--gray-bg:#efefed;--gray-fg:#55555c;--blue-bg:#e6eefd;--blue-fg:#2350c8;--amber-bg:#fcf0d9;--amber-fg:#8f5300;--green-bg:#e2f3e8;--green-fg:#17703f;--red-bg:#fde6e6;--red-fg:#b12424;--purple-bg:#efe8fd;--purple-fg:#6538c4;--pink-bg:#fce6f0;--pink-fg:#ad2c66;--teal-bg:#dff3f0;--teal-fg:#0f6b5f;--u0:#2a5ad7;--u1:#7a45f0;--u2:#e5602a;--u3:#0e9a78;--u4:#d63f78;--sh-card:0 1px 2px rgba(20,20,30,.04),0 8px 24px -12px rgba(20,20,30,.12);--sh-pop:0 0 0 1px rgba(24,24,32,.07),0 16px 40px -12px rgba(20,20,30,.22),0 4px 10px -4px rgba(20,20,30,.08);--rv-bg:#eeeeec;--rv-fg:#18181b;--rv-fg2:#55555e;--rv-fg3:#85858f;--rv-line:rgba(24,24,32,.1);--rv-chip:#fff;--rv-acc:#2a5ad7;--font:"Geist",ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--rv-bg);color:var(--rv-fg);font-family:var(--font);font-size:.875rem;-webkit-font-smoothing:antialiased}
+svg.i{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:inline-block;vertical-align:middle}
+svg.i.sm{width:.875rem;height:.875rem}svg.i.lg{width:1.25rem;height:1.25rem}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+code{font-family:var(--mono);font-size:.85em}
+
+/* ---------- review page ---------- */
+.rv-top{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--rv-bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--rv-line)}
+.rv-top-in{max-width:87.5rem;margin:0 auto;padding:.75rem max(1rem,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.rv-title{font-weight:600;font-size:.9375rem;letter-spacing:-.01em;display:flex;gap:.625rem;align-items:center;min-width:0;flex-wrap:wrap}
+.rv-title small{font-weight:400;color:var(--rv-fg3);font-size:.8125rem}
+.rv-seg{display:inline-flex;padding:.1875rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line)}
+.rv-seg button{font-size:.78rem;height:1.75rem;padding:0 .75rem;border-radius:999px;border:0;background:transparent;color:var(--rv-fg2);cursor:pointer;display:inline-flex;gap:.375rem;align-items:center}
+.rv-seg button[aria-pressed="true"]{background:var(--rv-fg);color:var(--rv-bg)}
+.rv-ctl{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.rv-toc{max-width:87.5rem;margin:0 auto;padding:0 1rem .625rem;display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none}
+.rv-toc a{flex:none;font-size:.75rem;color:var(--rv-fg2);text-decoration:none;padding:.25rem .5625rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);white-space:nowrap}
+.rv-toc a:hover{color:var(--rv-fg)}
+.rv-wrap{max-width:87.5rem;margin:0 auto;padding-block:1.5rem 5rem;padding-left:max(1rem,env(safe-area-inset-left,0px));padding-right:max(1rem,env(safe-area-inset-right,0px))}
+.rv-intro{max-width:47.5rem;line-height:1.65;color:var(--rv-fg2);margin:.5rem 0 1.75rem}
+.rv-intro h1{font-size:1.75rem;letter-spacing:-.02em;color:var(--rv-fg);margin:0 0 .5rem;font-weight:600;text-wrap:balance}
+.rv-intro p{margin:0 0 .5rem}
+.dec{background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);border-radius:.75rem;padding:.875rem 1rem;margin:0 0 1.25rem;font-size:.8125rem;line-height:1.6}
+.dec ol{margin:.375rem 0 0;padding-left:1.25rem}.dec li{margin:.25rem 0}
+.rv-sec{margin:3.5rem 0 0;scroll-margin-top:7rem}
+.rv-sec>h2{font-size:1.375rem;letter-spacing:-.015em;margin:0 0 .375rem;font-weight:600;display:flex;gap:.625rem;align-items:baseline;flex-wrap:wrap}
+.rv-sec>h2 code{font-size:.8125rem;color:var(--rv-acc);font-weight:500}
+.rv-sec>p{max-width:51rem;color:var(--rv-fg2);line-height:1.6;margin:0 0 1.25rem}
+.rv-row{display:flex;flex-wrap:wrap;gap:1.75rem;align-items:flex-start}
+.fr{margin:0 0 2rem;min-width:0;max-width:100%;scroll-margin-top:7rem}
+.fr figcaption{display:flex;gap:.625rem;align-items:center;margin:0 0 .625rem;font-weight:500;flex-wrap:wrap}
+.fr figcaption b{font-family:var(--mono);font-size:.75rem;font-weight:500;padding:.125rem .4375rem;border-radius:.375rem;background:var(--rv-fg);color:var(--rv-bg)}
+.fr figcaption .dim{color:var(--rv-fg3);font-weight:400;font-size:.75rem;font-family:var(--mono)}
+.fr-vp{max-width:100%;overflow:auto;border-radius:.875rem}
+.fr-in{position:relative;overflow:hidden;border-radius:.875rem;box-shadow:0 0 0 1px var(--rv-line),0 30px 70px -40px rgba(0,0,0,.45);background:var(--page)}
+.fr-in.phone{border-radius:2.75rem;box-shadow:0 0 0 1px var(--rv-line),0 0 0 9px #1c1c1f,0 0 0 10px #3a3a3e,0 30px 70px -30px rgba(0,0,0,.5);margin:.75rem}
+.note{max-width:47.5rem;font-size:.8125rem;line-height:1.6;color:var(--rv-fg2);margin:.75rem 0 0}
+.note em{font-style:normal;color:var(--rv-fg);font-weight:500}
+.fr.phf .note{max-width:25.6rem}
+.fr.phf .fr-vp{overflow:visible;max-width:100%;padding:.75rem}
+.fr.phf .fr-in.phone{margin:0}
+.fr.phf{width:27rem;max-width:100%}
+@media (max-width:40em){.rv-ctl{margin-left:0}.rv-intro h1{font-size:1.375rem}}
+
+/* ---------- OpenCanvas editor chrome ---------- */
+.oc{background:var(--app);color:var(--fg);width:100%;height:100%;display:flex;flex-direction:column;font-size:.875rem;line-height:1.5;position:relative}
+.oct{height:3rem;flex:none;display:flex;align-items:center;gap:.625rem;padding:0 .875rem;border-bottom:1px solid var(--line)}
+.crumbs{display:flex;align-items:center;gap:.375rem;min-width:0;white-space:nowrap;overflow:hidden}
+.crumbs .par{color:var(--fg-3)}.crumbs .sep{color:var(--fg-4)}
+.crumbs .cname{font-weight:500}
+.ctile{width:1.375rem;height:1.375rem;border-radius:.375rem;display:inline-grid;place-items:center;flex:none;background:var(--blue-bg);color:var(--blue-fg)}
+.ctile.t-purple{background:var(--purple-bg);color:var(--purple-fg)}.ctile.t-green{background:var(--green-bg);color:var(--green-fg)}.ctile.t-amber{background:var(--amber-bg);color:var(--amber-fg)}.ctile.t-pink{background:var(--pink-bg);color:var(--pink-fg)}.ctile.t-teal{background:var(--teal-bg);color:var(--teal-fg)}.ctile.t-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.ocst{display:inline-flex;gap:.3rem;align-items:center;color:var(--fg-3);font-size:.75rem}
+.stack{display:flex}.stack .av{box-shadow:0 0 0 2px var(--app);margin-left:-.375rem}.stack .av:first-child{margin-left:0}
+.av{display:inline-grid;place-items:center;border-radius:50%;color:#fff;font-weight:600;flex:none;width:1.625rem;height:1.625rem;font-size:.625rem;letter-spacing:.01em}
+.av.s{width:1.25rem;height:1.25rem;font-size:.5625rem}
+.ocb{flex:1;min-height:0;display:flex;position:relative}
+.doc{flex:1;min-width:0;overflow:auto;padding:2.5rem 3.5rem 3rem}
+.doc-in{max-width:44rem;margin:0 auto}
+.doc h1{font-size:2rem;letter-spacing:-.02em;margin:0 0 .25rem;font-weight:700}
+.doc .meta{color:var(--fg-3);font-size:.8125rem;margin:0 0 1.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.doc h2{font-size:1.25rem;margin:1.75rem 0 .5rem;font-weight:600;letter-spacing:-.01em}
+.doc p{margin:0 0 .75rem;line-height:1.65}
+.doc ul{margin:0 0 .75rem;padding-left:1.25rem;line-height:1.65}
+.side{width:21rem;flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.side-h{display:flex;align-items:center;gap:.5rem;padding:.75rem .875rem;border-bottom:1px solid var(--line);font-weight:600}
+.side-b{flex:1;overflow:auto;padding:.5rem}
+.btn{display:inline-flex;align-items:center;gap:.375rem;height:1.875rem;padding:0 .625rem;border-radius:.5rem;border:0;background:none;color:var(--fg-2);font-size:.8125rem;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hover);color:var(--fg)}
+.btn.on{background:var(--accent-soft);color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-fg)}
+.btn.sec{background:var(--sunk);color:var(--fg)}
+.btn.dan{background:var(--red-bg);color:var(--red-fg)}
+.btn.ic{width:1.875rem;padding:0;justify-content:center}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.seg{display:inline-flex;padding:.15rem;border-radius:.5rem;background:var(--sunk)}
+.seg button{border:0;background:none;height:1.5rem;padding:0 .55rem;border-radius:.375rem;font-size:.75rem;color:var(--fg-2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--app);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:.25rem;height:1.25rem;padding:0 .4rem;border-radius:.3rem;font-size:.6875rem;font-weight:500;white-space:nowrap}
+.p-gray{background:var(--gray-bg);color:var(--gray-fg)}.p-blue{background:var(--blue-bg);color:var(--blue-fg)}.p-green{background:var(--green-bg);color:var(--green-fg)}.p-amber{background:var(--amber-bg);color:var(--amber-fg)}.p-red{background:var(--red-bg);color:var(--red-fg)}.p-purple{background:var(--purple-bg);color:var(--purple-fg)}.p-pink{background:var(--pink-bg);color:var(--pink-fg)}.p-teal{background:var(--teal-bg);color:var(--teal-fg)}
+.pop{position:absolute;background:var(--pop);color:var(--fg);border-radius:.75rem;box-shadow:var(--sh-pop);padding:.5rem;z-index:10;font-size:.8125rem}
+.pop h4{margin:.25rem .4rem .5rem;font-size:.6875rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.mi{display:flex;gap:.5rem;align-items:center;padding:.4rem .5rem;border-radius:.5rem;cursor:pointer;min-height:2rem}
+.mi:hover,.mi.on{background:var(--hover)}
+.mi kbd,.kbd{font-family:var(--mono);font-size:.6875rem;color:var(--fg-3)}
+.mi kbd{margin-left:auto}
+.mi small{color:var(--fg-2);font-size:.75rem}
+.sepl{height:1px;background:var(--line);margin:.25rem 0}
+.hint{color:var(--fg-2);font-size:.75rem;line-height:1.5}
+.sw{width:1.75rem;height:1rem;border-radius:999px;background:var(--accent);position:relative;flex:none;border:0;padding:0;cursor:pointer}
+.sw::after{content:"";position:absolute;right:.125rem;top:.125rem;width:.75rem;height:.75rem;border-radius:50%;background:#fff}
+.sw.off,.sw[aria-checked="false"]{background:var(--line-2)}.sw.off::after,.sw[aria-checked="false"]::after{left:.125rem;right:auto}
+.inp{display:flex;align-items:center;gap:.4rem;height:2rem;padding:0 .6rem;border-radius:.5rem;background:var(--sunk);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line)}
+.inp input{border:0;background:none;font:inherit;color:inherit;outline:none;flex:1;min-width:0}
+.inp.f{box-shadow:inset 0 0 0 1.5px var(--accent),0 0 0 3px var(--accent-ring)}
+.mask{position:absolute;inset:0;background:rgba(10,10,14,.32);display:grid;place-items:center;z-index:20}
+.dlg{background:var(--pop);color:var(--fg);border-radius:1rem;box-shadow:var(--sh-pop);width:min(34rem,calc(100% - 2rem));max-height:calc(100% - 2rem);overflow:auto;display:flex;flex-direction:column}
+.dlg-h{display:flex;align-items:flex-start;gap:.75rem;padding:1rem 1.125rem .5rem}
+.dlg-h h3{margin:0;font-size:1.0625rem;font-weight:600}
+.dlg-h p{margin:.125rem 0 0;color:var(--fg-2);font-size:.8125rem}
+.dlg-b{padding:.5rem 1.125rem 1rem}
+.dlg-f{display:flex;gap:.5rem;justify-content:flex-end;padding:.75rem 1.125rem;border-top:1px solid var(--line);flex-wrap:wrap}
+.toast{position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);background:var(--pop);color:var(--fg);box-shadow:var(--sh-pop);border-radius:.75rem;padding:.6rem .75rem;display:flex;gap:.6rem;align-items:center;z-index:30;font-size:.8125rem;max-width:calc(100% - 2rem);flex-wrap:wrap}
+.tip{position:absolute;z-index:40;background:var(--fg);color:var(--app);font-size:.6875rem;padding:.25rem .45rem;border-radius:.375rem;white-space:nowrap;pointer-events:none}
+
+/* phone */
+.ph{width:24.375rem;height:52.75rem;background:var(--app);color:var(--fg);display:flex;flex-direction:column;font-size:.875rem;position:relative;overflow:hidden}
+.ph-st{height:2.9rem;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 1.75rem 0 2rem;font-weight:600;font-size:.9rem}
+.ph-hd{display:flex;align-items:center;gap:.5rem;padding:.25rem .75rem .5rem;flex:none}
+.ph-hd h3{margin:0;font-size:1.0625rem;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-b{flex:1;min-height:0;overflow:auto}
+.ph-dock{margin-top:auto;flex:none;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:.5rem 0 1.75rem;color:var(--fg-2)}
+.ph-dock button{border:0;background:none;display:grid;gap:.15rem;place-items:center;font-size:.625rem;cursor:pointer;min-width:2.75rem;min-height:2.75rem}
+.ph-dock button.on{color:var(--accent)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--pop);border-radius:1.25rem 1.25rem 0 0;box-shadow:var(--sh-pop);padding:.5rem 1rem 2rem;z-index:5}
+.sheet .grab{width:2.25rem;height:.3rem;border-radius:999px;background:var(--line-2);margin:0 auto .75rem}
+.kbd-t{width:100%;border-collapse:collapse;font-size:.8125rem;background:var(--app);color:var(--fg)}
+.kbd-t td,.kbd-t th{padding:.5rem .75rem;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+.kbd-t td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.75rem;color:var(--fg-2);width:13rem}
+/* ---------- links and backlinks ---------- */
+.cl{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent);display:inline;cursor:pointer;border-radius:.2rem;padding:0 .1rem;white-space:normal}
+.cl svg.i{width:.875rem;height:.875rem;margin:-.15rem .2rem 0 0}
+.cl:hover,.cl:focus-visible{background:var(--accent-soft)}
+.cl .blk{color:var(--fg-2)}
+.cl.na{color:var(--fg-2);border-bottom-style:dashed;border-bottom-color:var(--line-2)}
+.cl.del{color:var(--fg-3);text-decoration:line-through;border-bottom-color:transparent}
+.cl.nf{color:var(--amber-fg);border-bottom-color:color-mix(in srgb,var(--amber-fg) 40%,transparent)}
+.caret{display:inline-block;width:2px;height:1.15em;background:var(--accent);vertical-align:text-bottom;margin-left:1px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.typed{background:var(--accent-soft);color:var(--accent);border-radius:.25rem;padding:0 .2rem;font-family:var(--mono);font-size:.8125rem}
+.blkchip{display:inline-flex;align-items:center;gap:.25rem;height:1.25rem;padding:0 .4rem;border-radius:999px;background:var(--sunk);color:var(--fg-2);font-size:.6875rem;font-weight:500;margin-left:.5rem;vertical-align:middle;cursor:pointer;border:0}
+.blkchip:hover{background:var(--accent-soft);color:var(--accent)}
+.hd-row{display:flex;align-items:center;gap:.25rem;position:relative}
+.handle{position:absolute;left:-2.25rem;top:50%;transform:translateY(-50%);display:flex;gap:.125rem;color:var(--fg-3)}
+.handle span{width:1.25rem;height:1.5rem;display:grid;place-items:center;border-radius:.3rem}
+.handle span.on{background:var(--hover);color:var(--fg)}
+.flash{animation:flash 1.6s ease-out 1}
+@keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
+.mini-db{border:1px solid var(--line);border-radius:.625rem;overflow:hidden;font-size:.8125rem;margin:.25rem 0 1rem}
+.mini-db .r{display:grid;grid-template-columns:1fr 6.5rem 5.5rem;gap:.5rem;padding:.4rem .75rem;border-top:1px solid var(--line);align-items:center}
+.mini-db .r:first-child{border-top:0;color:var(--fg-3);font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;background:var(--panel)}
+
+/* picker */
+.pk{width:26rem}
+.pk .q{display:flex;align-items:center;gap:.4rem;padding:.25rem .4rem .5rem;border-bottom:1px solid var(--line);margin-bottom:.25rem;color:var(--fg-2);font-size:.8125rem}
+.pk .grp{font-size:.6875rem;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.04em;padding:.5rem .5rem .25rem}
+.pk .mi{align-items:flex-start}
+.pk .mi .tx{display:grid;min-width:0;flex:1}
+.pk .mi .tx b{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk .mi .tx small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk mark{background:none;color:var(--accent);font-weight:600}
+.pk .foot{display:flex;gap:.75rem;padding:.5rem .5rem .25rem;border-top:1px solid var(--line);margin-top:.25rem;color:var(--fg-2);font-size:.6875rem;flex-wrap:wrap}
+
+/* linked from */
+.lf{margin-top:2.5rem;border-top:1px solid var(--line);padding-top:1.25rem}
+.lf-h{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.75rem}
+.lf-h h2{margin:0!important;font-size:1rem!important;display:flex;gap:.5rem;align-items:center}
+.lf-h .cnt{font-size:.75rem;font-weight:500;color:var(--fg-2);background:var(--sunk);border-radius:999px;padding:.05rem .45rem}
+.src{border-radius:.625rem;margin:0 -.5rem .25rem}
+.src-h{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:.5rem;cursor:pointer;border:0;background:none;width:100%;text-align:left}
+.src-h:hover{background:var(--hover)}
+.src-h .tw{transition:transform .15s}
+.src[aria-expanded="false"] .tw{transform:rotate(-90deg)}
+.src-h b{font-weight:500}
+.src-h .path{color:var(--fg-3);font-size:.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.src-h .when{margin-left:auto;color:var(--fg-3);font-size:.75rem;white-space:nowrap}
+.ref{margin:0 .5rem .375rem 2.25rem;padding:.5rem .75rem;border-radius:.5rem;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);line-height:1.55;font-size:.8125rem;cursor:pointer}
+.ref:hover{box-shadow:inset 0 0 0 1px var(--line-2)}
+.ref .ctx{color:var(--fg-2);font-size:.6875rem;display:flex;gap:.375rem;align-items:center;margin-bottom:.15rem}
+.ref .hl{background:color-mix(in srgb,var(--accent-soft) 100%,transparent);color:var(--accent);border-radius:.2rem;padding:0 .15rem;font-weight:500}
+.src[aria-expanded="false"] .ref{display:none}
+.um{margin-top:1rem}
+.um .ref .hl{background:var(--amber-bg);color:var(--amber-fg)}
+.um-act{display:flex;justify-content:flex-end;margin-top:.375rem;gap:.375rem}
+.more{color:var(--fg-2);font-size:.75rem;padding:.375rem .5rem}
+.lf-note{color:var(--fg-2);font-size:.75rem;display:flex;gap:.375rem;align-items:center;margin-top:.75rem}
+
+/* side panel tabs */
+.ptabs{display:flex;gap:.125rem;padding:0 .5rem;border-bottom:1px solid var(--line)}
+.ptab{height:2.25rem;padding:0 .5rem;border:0;background:none;color:var(--fg-2);font-size:.8125rem;border-bottom:2px solid transparent;cursor:pointer;display:inline-flex;gap:.35rem;align-items:center}
+.ptab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg);font-weight:500}
+.side .src{margin:0 0 .25rem}
+.side .ref{margin-left:1.75rem;margin-right:0}
+
+/* preview card */
+.pv{width:22rem;padding:0;overflow:hidden}
+.pv-h{display:flex;gap:.6rem;align-items:flex-start;padding:.75rem .875rem .5rem}
+.pv-h .tt{min-width:0;flex:1}
+.pv-h .tt b{display:block;font-weight:600;font-size:.9375rem}
+.pv-h .tt small{color:var(--fg-2);font-size:.75rem}
+.pv-b{padding:0 .875rem .75rem;color:var(--fg-2);font-size:.8125rem;line-height:1.55;position:relative;max-height:8.5rem;overflow:hidden}
+.pv-b::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2rem;background:linear-gradient(transparent,var(--pop))}
+.pv-b h5{margin:.25rem 0;font-size:.8125rem;color:var(--fg)}
+.pv-f{display:flex;gap:.5rem;align-items:center;padding:.5rem .875rem;border-top:1px solid var(--line);background:var(--panel);font-size:.75rem;color:var(--fg-2);flex-wrap:wrap}
+.pv-f .btn{height:1.625rem}
+.pv.live{position:absolute;opacity:0;pointer-events:none;transform:translateY(.25rem);transition:opacity .12s,transform .12s}
+.pv.live.show{opacity:1;pointer-events:auto;transform:none}
+.state-row{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.state-row:last-child{border-bottom:0}
+.state-row .lbl{width:9rem;color:var(--fg-2);font-size:.75rem;flex:none}
+.state-row .why{color:var(--fg-2);font-size:.75rem;flex:1;min-width:12rem}
+
+/* phone bits */
+.ph .doc{padding:1rem 1.125rem 2rem}
+.ph .doc h1{font-size:1.5rem}
+.ph .lf{margin-top:1.5rem}
+.ph .ref{margin-left:0;margin-right:0}
+.ph .src-h{min-height:2.75rem}
+.ph-kb{background:var(--sunk);border-top:1px solid var(--line);height:13rem;flex:none;display:grid;grid-template-columns:repeat(10,1fr);gap:.375rem;padding:.5rem .25rem 2rem}
+.ph-kb span{background:var(--app);border-radius:.3rem;box-shadow:0 1px 0 var(--line-2);display:grid;place-items:center;font-size:.875rem;color:var(--fg)}
+.ph-pk{border-top:1px solid var(--line);background:var(--pop);flex:none}
+.ph-pk .mi{min-height:2.75rem;padding:.5rem 1rem;border-radius:0}
+
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8M16 13H8M16 17H8"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-unlink" viewBox="0 0 24 24"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><path d="M8 2v3M2 8h3M16 22v-3M22 16h-3"/></symbol>
+<symbol id="i-arrow-ur" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+<symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+<symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
+<symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></symbol>
+<symbol id="i-graph" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/></symbol>
+<symbol id="i-network" viewBox="0 0 24 24"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8"/></symbol>
+<symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M15.39 4.39a1 1 0 0 0 1.68-.47 2.5 2.5 0 1 1 3.01 3.01 1 1 0 0 0-.47 1.68l1.68 1.68a2.41 2.41 0 0 1 0 3.42l-1.68 1.68a1 1 0 0 1-1.68-.47 2.5 2.5 0 1 0-3.01 3.01 1 1 0 0 1 .47 1.68l-1.68 1.68a2.41 2.41 0 0 1-3.42 0l-1.68-1.68a1 1 0 0 0-1.68.47 2.5 2.5 0 1 1-3.01-3.01 1 1 0 0 0 .47-1.68l-1.68-1.68a2.41 2.41 0 0 1 0-3.42l1.68-1.68a1 1 0 0 1 1.68.47 2.5 2.5 0 1 0 3.01-3.01 1 1 0 0 1-.47-1.68l1.68-1.68a2.41 2.41 0 0 1 3.42 0z"/></symbol>
+<symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4M12 16h.01"/></symbol>
+<symbol id="i-badge-check" viewBox="0 0 24 24"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M11.53 2.3a.53.53 0 0 1 .95 0l2.31 4.68a2.12 2.12 0 0 0 1.6 1.16l5.16.76a.53.53 0 0 1 .3.9l-3.74 3.64a2.12 2.12 0 0 0-.61 1.88l.88 5.14a.53.53 0 0 1-.77.56l-4.62-2.43a2.12 2.12 0 0 0-1.97 0L6.4 21.01a.53.53 0 0 1-.77-.56l.88-5.14a2.12 2.12 0 0 0-.61-1.88L2.16 9.8a.53.53 0 0 1 .3-.9l5.16-.76a2.12 2.12 0 0 0 1.6-1.16z"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12M3.29 7 12 12l8.71-5M7.5 4.27l9 5.15"/></symbol>
+<symbol id="i-command" viewBox="0 0 24 24"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9z"/></symbol>
+<symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-gantt" viewBox="0 0 24 24"><path d="M8 6h10M6 12h9M11 18h7"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/></symbol>
+<symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+<symbol id="i-heading" viewBox="0 0 24 24"><path d="M6 12h12M6 20V4M18 20V4"/></symbol>
+<symbol id="i-text" viewBox="0 0 24 24"><path d="M17 6.1H3M21 12.1H3M15.1 18H3"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+<symbol id="i-file-up" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 12v6M15 15l-3-3-3 3"/></symbol>
+<symbol id="i-file-down" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 18v-6M9 15l3 3 3-3"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4M21 2l-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+<symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></symbol>
+<symbol id="i-git" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-map" viewBox="0 0 24 24"><path d="M14.11 5.11a1 1 0 0 0 .89 0l3.55-1.78A1 1 0 0 1 20 4.22v12.16a1 1 0 0 1-.55.9l-4 2a1 1 0 0 1-.9 0l-5.1-2.56a1 1 0 0 0-.9 0l-3.55 1.78A1 1 0 0 1 4 17.6V5.44a1 1 0 0 1 .55-.9l4-2a1 1 0 0 1 .9 0zM15 5.76v15M9 3.24v15"/></symbol>
+<symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></symbol>
+</defs></svg>
+
+<header class="rv-top"><div class="rv-top-in"><div class="rv-title"><svg class="i" aria-hidden="true"><use href="#i-arrow-ur"/></svg>Backlinks and linked references <small>v0.5 · docs/38 §2 · draft for approval</small></div><div class="rv-ctl"><div class="rv-seg" role="group" aria-label="Theme"><button data-theme-btn="light"><svg class="i sm" aria-hidden="true"><use href="#i-sun"/></svg>Light</button><button data-theme-btn="dark"><svg class="i sm" aria-hidden="true"><use href="#i-moon"/></svg>Dark</button></div><div class="rv-seg" role="group" aria-label="Frame size"><button data-fit="1">Fit to width</button><button data-fit="0">Actual size</button></div></div></div>
+<nav class="rv-toc" aria-label="Frames"><a href="#f1">1 Linking</a><a href="#f2">2 Linked from</a><a href="#f3">3 Preview and states</a><a href="#f4">4 Phone</a><a href="#f5">5 Empty and off</a><a href="#f6">6 Keyboard</a></nav></header>
+
+<main class="rv-wrap">
+ <div class="rv-intro">
+  <div class="dec"><b style="color:var(--rv-fg)">Decisions for the owner</b><ol><li><code>[[</code> links a canvas; <code>#</code> after it links a heading, database or row. A pasted host URL for a canvas becomes the same link. No <code>@</code> for canvases (that stays for people).</li><li>A link always shows the canvas's current title from the host. The label saved in the document is used only by exports and older editors.</li><li>“Linked from” sits at the end of every canvas and in the side panel, one group per canvas, newest edit first, with the sentence around each link.</li><li>Counts and lists include only canvases the reader can open. There is no “and 3 more you can't see”.</li><li>Excerpts are made when the panel opens and are not stored (roadmap question 1 asks whether to store a short encrypted excerpt instead).</li><li>Unlinked mentions come from the organisation's search; the section is hidden when the host has none. Folded when there are more than 5.</li><li><em>Link</em> on a mention edits the other canvas as you, needs edit access there, and is one undo step there. <em>Link all</em> links only the canvases you can edit.</li><li>The preview opens after 400 ms of hover or with Space on a focused link, never on focus alone.</li><li>The “Linked from” chip shows on headings, databases, boards and rows that have backlinks; not on every paragraph.</li><li>Phone: a section at the end, a sheet from the top bar, long-press for the preview.</li></ol></div>
+  <h1>Backlinks and linked references</h1>
+  <p>Prototype for review (v0.5, docs/38 §2, ADR-081). Canvases and blocks can be linked with <code>[[</code>, and every canvas shows what links to it, with context, plus mentions of its name that are not links yet. The server keeps only which canvas links to which (ids, no text); titles and excerpts are read from the host with the reader's access each time, so nobody sees a link from a canvas they cannot open. Sample content: Acme Docs, Engineering space, the “SSO rollout plan” canvas. Frames 2a and 3a are live.</p>
+ </div>
+
+ <section class="rv-sec" id="f1">
+  <h2>1 · Linking a canvas or a block <code>LINK-01 · ADR-081</code></h2>
+  <p>Type <code>[[</code> to link another canvas. Results come from the host's search and the canvases you opened recently, so you only ever see canvases you can open. Add <code>#</code> to link a heading, a database or a row inside it. A pasted host URL for a canvas becomes the same kind of link.</p>
+  <figure class="fr" id="1a"><figcaption><b>1a</b>The <code>[[</code> picker, then <code>#</code> for a block<span class="dim">1280 × 800</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Engineering</span><span class="sep">/</span><span class="ctile "><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">Q1 Platform roadmap</span></div><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="sp"></span><button class="btn" aria-label="Linked from 5 canvases"><svg class="i"><use href="#i-arrow-ur"/></svg>5</button><button class="btn ic" aria-label="Graph"><svg class="i"><use href="#i-graph"/></svg></button><div class="stack"><span class="av" style="background:var(--u0)">JW</span><span class="av" style="background:var(--u3)">LF</span><span class="av" style="background:var(--u2)">MB</span></div><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ocb"><div class="doc"><div class="doc-in">
+      <h1>Q1 Platform roadmap</h1>
+      <div class="meta"><span class="pill p-blue">Engineering</span><span>Edited just now by Jonas Weber</span></div>
+      <h2>Identity</h2>
+      <p>Single sign-on is the first commitment for Q1. Enterprise customers asked for it in 14 of the last 20 renewals, and it unblocks the Northwind expansion.</p>
+      <p>Scope and dates live in <span class="typed">[[sso ro</span><span class="caret"></span></p>
+      <div style="height:15rem"></div>
+      <h2>Reliability</h2>
+      <p>Export timeouts for large accounts are fixed in 4.2; see the incident review for the follow-ups.</p>
+     </div></div></div>
+     <div class="pop pk" style="left:23.5rem;top:22rem" role="listbox" aria-label="Link a canvas">
+      <div class="q"><svg class="i sm"><use href="#i-search"/></svg>Canvases matching “sso ro”<span class="sp"></span><span class="kbd">Esc</span></div>
+      <div class="grp">Best match</div>
+      <div class="mi on" role="option" aria-selected="true"><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><span class="tx"><b><mark>SSO ro</mark>llout plan</b><small>Engineering · Identity · edited 2 h ago by Lea Fischer</small></span><kbd>↵</kbd></div>
+      <div class="grp">Other canvases</div>
+      <div class="mi" role="option"><span class="ctile t-pink"><svg class="i sm"><use href="#i-file"/></svg></span><span class="tx"><b>Security review: SAML and <mark>SSO</mark></b><small>Engineering · Security · edited Nov 24</small></span></div>
+      <div class="mi" role="option"><span class="ctile t-green"><svg class="i sm"><use href="#i-file"/></svg></span><span class="tx"><b>Customer interview: Northwind (<mark>SSO</mark>, audit log)</b><small>Customers · Interviews · edited Nov 19</small></span></div>
+      <div class="mi" role="option"><span class="ctile t-amber"><svg class="i sm"><use href="#i-file"/></svg></span><span class="tx"><b><mark>SSO</mark> support macros</b><small>Ops · Support · edited Oct 30</small></span></div>
+      <div class="foot"><span><b>#</b> link a heading or database</span><span><b>Tab</b> keep typing a title</span><span><b>Shift ↵</b> plain text</span></div>
+     </div>
+     <div class="pop pk" style="left:51rem;top:22rem;width:22rem" aria-label="Blocks in SSO rollout plan">
+      <div class="q"><svg class="i sm"><use href="#i-hash"/></svg>SSO rollout plan <b style="color:var(--fg)">#</b></div>
+      <div class="grp">Headings</div>
+      <div class="mi"><svg class="i sm"><use href="#i-heading"/></svg><span class="tx"><b>Phase 1: pilot with three customers</b></span></div>
+      <div class="mi on"><svg class="i sm"><use href="#i-heading"/></svg><span class="tx"><b>Phase 2: enforce SSO</b></span><kbd>↵</kbd></div>
+      <div class="mi"><svg class="i sm"><use href="#i-heading"/></svg><span class="tx"><b>Open questions</b></span></div>
+      <div class="grp">Databases and rows</div>
+      <div class="mi"><svg class="i sm"><use href="#i-table"/></svg><span class="tx"><b>Rollout timeline</b><small>12 rows</small></span></div>
+      <div class="mi"><svg class="i sm"><use href="#i-list"/></svg><span class="tx"><b>Rollout timeline › Enable for Northwind</b><small>Row · Due Jan 12</small></span></div>
+      <div class="foot"><span><b>#^</b> any block by its first words</span></div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note">The second popover is what appears after choosing a canvas and typing <code>#</code> (shown side by side here). <em>Enter</em> inserts the link as <span class="cl" tabindex="-1"><svg class="i"><use href="#i-file"/></svg>SSO rollout plan <span class="blk">› Phase 2: enforce SSO</span></span>. The link shows the canvas's current title from the host; if the canvas is renamed or moved, every link follows. <em>Shift Enter</em> keeps the typed text as plain text.</p>
+  </figure>
+
+  <figure class="fr" id="1b"><figcaption><b>1b</b>Block targets and the “Linked from” chip<span class="dim">880 × 420</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="880" style="width:55rem;height:26.25rem">
+    <div class="oc"><div class="ocb"><div class="doc" style="padding-top:2rem"><div class="doc-in" style="max-width:40rem">
+     <div class="hd-row"><div class="handle"><span><svg class="i sm"><use href="#i-plus"/></svg></span><span class="on"><svg class="i sm"><use href="#i-dots"/></svg></span></div><h2 style="margin:0">Phase 2: enforce SSO</h2><button class="blkchip" aria-label="Linked from 3 canvases"><svg class="i sm"><use href="#i-arrow-ur"/></svg>3</button></div>
+     <p style="margin-top:.5rem">Workspace owners can switch “Require SSO” on. Password sign-in stays available to owners for 14 days as a fallback, then turns off.</p>
+     <div class="pop" style="left:11.5rem;top:4.75rem;width:16rem">
+      <div class="mi on"><svg class="i"><use href="#i-link"/></svg>Copy link to block<kbd>⌘ ⇧ L</kbd></div>
+      <div class="mi"><svg class="i"><use href="#i-arrow-ur"/></svg>Linked from 3 canvases</div>
+      <div class="mi"><svg class="i"><use href="#i-graph"/></svg>Show in graph</div>
+      <div class="sepl"></div>
+      <div class="mi"><svg class="i"><use href="#i-plus"/></svg>Turn into…</div>
+      <div class="mi"><svg class="i"><use href="#i-trash"/></svg>Delete</div>
+     </div>
+     <div class="pop" style="right:1rem;top:1.5rem;width:16.5rem">
+      <h4>Linked from this heading</h4>
+      <div class="mi"><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><span>Q1 Platform roadmap</span></div>
+      <div class="mi"><span class="ctile t-pink"><svg class="i sm"><use href="#i-file"/></svg></span><span>Security review: SAML</span></div>
+      <div class="mi"><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><span>Weekly sync, Nov 23</span></div>
+      <div class="hint" style="padding:.25rem .5rem">Only canvases you can open are listed.</div>
+     </div>
+    </div></div></div></div>
+   </div></div>
+   <p class="note">Every block can be a link target. <em>Copy link to block</em> gives the block an id if it has none and copies the host URL with the block (ADR-023). A block with backlinks shows a small chip with the count of canvases <em>you</em> can open; it opens the list on the right. Opening a block link scrolls to the block and flashes it once.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f2">
+  <h2>2 · “Linked from” and unlinked mentions <code>LINK-03 · LINK-04 · LINK-05</code></h2>
+  <p>At the end of every canvas (and in the side panel, 2b), the canvases that link here, grouped by canvas, each with the sentence around the link. Below, canvases that mention this one by name without linking it. Frame 2a is live: filter by kind or block, fold a group, open a reference, or press <em>Link</em> on a mention.</p>
+  <figure class="fr" id="2a"><figcaption><b>2a</b>End of the canvas: Linked from and Unlinked mentions<span class="dim">1280 × 1024 · live</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:64rem">
+    <div class="oc" id="lfapp">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Engineering</span><span class="sep">/</span><span class="ctile "><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">SSO rollout plan</span></div><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="sp"></span><button class="btn" aria-label="Linked from 5 canvases"><svg class="i"><use href="#i-arrow-ur"/></svg>5</button><button class="btn ic" aria-label="Graph"><svg class="i"><use href="#i-graph"/></svg></button><div class="stack"><span class="av" style="background:var(--u0)">JW</span><span class="av" style="background:var(--u3)">LF</span><span class="av" style="background:var(--u2)">MB</span></div><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ocb"><div class="doc" style="padding-top:1.5rem"><div class="doc-in">
+      <p style="color:var(--fg-2)">… <b style="color:var(--fg)">Open questions.</b> Do we let guests bypass SSO? Legal wants an answer before the Northwind pilot (owner: Lea).</p>
+      <div class="lf" aria-labelledby="lf-h">
+       <div class="lf-h"><h2 id="lf-h"><svg class="i"><use href="#i-arrow-ur"/></svg>Linked from <span class="cnt" data-count>5 canvases</span></h2><span class="sp"></span>
+        <div class="seg" role="group" aria-label="Kind" data-kind><button aria-pressed="true" data-k="all">All</button><button aria-pressed="false" data-k="link">Links</button><button aria-pressed="false" data-k="embed">Live blocks</button><button aria-pressed="false" data-k="relation">Relations</button></div>
+        <button class="btn" data-blockf aria-haspopup="true"><svg class="i"><use href="#i-hash"/></svg><span>Any block</span><svg class="i sm"><use href="#i-down"/></svg></button>
+        <button class="btn"><svg class="i"><use href="#i-clock"/></svg>Recent</button>
+       </div>
+       <div data-list></div>
+       <div class="lf-note"><svg class="i sm"><use href="#i-lock"/></svg>Shows only canvases you can open. Updated when a canvas is saved.</div>
+       <div class="um">
+        <div class="lf-h"><h2><svg class="i"><use href="#i-at"/></svg>Unlinked mentions <span class="cnt" data-ucount>2</span></h2><span class="sp"></span><button class="btn" data-linkall>Link all</button></div>
+        <div data-ulist></div>
+       </div>
+      </div>
+     </div></div></div>
+     <div class="toast" data-toast hidden role="status"></div>
+    </div>
+   </div></div>
+   <p class="note"><em>Grouping:</em> one entry per canvas, newest edit first; each reference shows which block it is in and, when the link points at a block here, which one (“to Phase 2”). <em>Excerpts</em> are made when you open the page, from the linking canvas as you are allowed to read it; nothing is stored. <em>Link</em> turns the mention into a link in that canvas, as you, if you can edit it (otherwise the button reads “Can't edit” with the reason on hover). It is one undo step there.</p>
+  </figure>
+
+  <div class="rv-row">
+   <figure class="fr" id="2b" style="flex:1 1 30rem"><figcaption><b>2b</b>In the side panel, filtered to one block<span class="dim">1040 × 640</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="1040" style="width:65rem;height:40rem">
+     <div class="oc">
+      <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Engineering</span><span class="sep">/</span><span class="ctile "><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">SSO rollout plan</span></div><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="sp"></span><button class="btn" aria-label="Linked from 5 canvases"><svg class="i"><use href="#i-arrow-ur"/></svg>5</button><button class="btn ic" aria-label="Graph"><svg class="i"><use href="#i-graph"/></svg></button><div class="stack"><span class="av" style="background:var(--u0)">JW</span><span class="av" style="background:var(--u3)">LF</span><span class="av" style="background:var(--u2)">MB</span></div><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+      <div class="ocb"><div class="doc" style="padding:2rem 2.5rem"><div class="doc-in" style="max-width:34rem">
+       <h1 style="font-size:1.75rem">SSO rollout plan</h1>
+       <div class="meta"><span class="pill p-blue">Engineering</span><span>Edited 2 h ago by Lea Fischer</span></div>
+       <p>Goal: every Acme Docs workspace on the Business plan can require single sign-on by <b>Feb 15</b>. Work is tracked in <span class="cl"><svg class="i"><use href="#i-file"/></svg>Sprint 42 planning</span>; decisions are in <span class="cl"><svg class="i"><use href="#i-file"/></svg>Security review: SAML <span class="blk">› Decisions</span></span>.</p>
+       <div class="hd-row flash"><h2 style="margin:.75rem 0 .25rem">Phase 2: enforce SSO</h2><button class="blkchip on" style="background:var(--accent-soft);color:var(--accent)"><svg class="i sm"><use href="#i-arrow-ur"/></svg>3</button></div>
+       <p>Workspace owners can switch “Require SSO” on. Password sign-in stays available to owners for 14 days as a fallback.</p>
+      </div></div>
+      <aside class="side" aria-label="Side panel">
+       <div class="ptabs" role="tablist"><button class="ptab" role="tab" aria-selected="false"><svg class="i sm"><use href="#i-message"/></svg>Comments</button><button class="ptab" role="tab" aria-selected="true"><svg class="i sm"><use href="#i-arrow-ur"/></svg>Linked from</button><button class="ptab" role="tab" aria-selected="false"><svg class="i sm"><use href="#i-graph"/></svg>Graph</button></div>
+       <div style="padding:.625rem .75rem;display:flex;gap:.375rem;align-items:center;border-bottom:1px solid var(--line);flex-wrap:wrap"><span class="pill p-blue"><svg class="i sm"><use href="#i-hash"/></svg>Phase 2: enforce SSO<svg class="i sm" style="margin-left:.15rem"><use href="#i-x"/></svg></span><span class="hint">3 canvases</span></div>
+       <div class="side-b">
+        <div class="src" aria-expanded="true"><button class="src-h"><svg class="i sm tw"><use href="#i-down"/></svg><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><b>Q1 Platform roadmap</b><span class="when">now</span></button>
+         <div class="ref"><div class="ctx"><svg class="i sm"><use href="#i-heading"/></svg>in Identity</div>Scope and dates live in <span class="hl">SSO rollout plan › Phase 2: enforce SSO</span>.</div></div>
+        <div class="src" aria-expanded="true"><button class="src-h"><svg class="i sm tw"><use href="#i-down"/></svg><span class="ctile t-pink"><svg class="i sm"><use href="#i-file"/></svg></span><b>Security review: SAML</b><span class="when">Nov 24</span></button>
+         <div class="ref"><div class="ctx"><svg class="i sm"><use href="#i-text"/></svg>in Decisions</div>Owners keep a password fallback for 14 days after <span class="hl">enforcement</span>, then it turns off.</div></div>
+        <div class="src" aria-expanded="true"><button class="src-h"><svg class="i sm tw"><use href="#i-down"/></svg><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><b>Weekly sync, Nov 23</b><span class="when">Nov 23</span></button>
+         <div class="ref"><div class="ctx"><svg class="i sm"><use href="#i-list"/></svg>in Action items</div>Marco to confirm the 14-day fallback in <span class="hl">Phase 2</span> with support.</div></div>
+       </div>
+      </aside>
+     </div>
+    </div></div>
+    <p class="note">The side panel shares a tab row with Comments and Graph. Clicking a block's chip (1b) opens it filtered to that block; the filter chip clears it.</p>
+   </figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f3">
+  <h2>3 · Hover preview and link states <code>LINK-04 · ADR-072</code></h2>
+  <p>Resting on a canvas or block link for 400 ms (or focusing it and pressing <em>Space</em>) shows a preview: title, place, last edit, and the first lines of the canvas or the linked block, read through the host with your role. Frame 3a is live: hover or focus the links.</p>
+  <figure class="fr" id="3a"><figcaption><b>3a</b>Previews of a canvas, a heading and a database row<span class="dim">1280 × 620 · live</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:38.75rem">
+    <div class="oc" id="pvapp">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Engineering</span><span class="sep">/</span><span class="ctile "><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">SSO rollout plan</span></div><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="sp"></span><button class="btn" aria-label="Linked from 5 canvases"><svg class="i"><use href="#i-arrow-ur"/></svg>5</button><button class="btn ic" aria-label="Graph"><svg class="i"><use href="#i-graph"/></svg></button><div class="stack"><span class="av" style="background:var(--u0)">JW</span><span class="av" style="background:var(--u3)">LF</span><span class="av" style="background:var(--u2)">MB</span></div><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ocb"><div class="doc"><div class="doc-in">
+      <h2 style="margin-top:0">Rollout</h2>
+      <p>Pilot customers are listed in <a class="cl" href="#3a" data-pv="interview"><svg class="i"><use href="#i-file"/></svg>Customer interview: Northwind</a>. The SAML decisions we depend on are in <a class="cl" href="#3a" data-pv="saml"><svg class="i"><use href="#i-file"/></svg>Security review: SAML <span class="blk">› Decisions</span></a>, and the engineering work is the row <a class="cl" href="#3a" data-pv="row"><svg class="i"><use href="#i-table"/></svg>Sprint 42 backlog <span class="blk">› Ship SSO login for the admin console</span></a>.</p>
+      <p>Hover a link, or Tab to it and press Space.</p>
+     </div></div></div>
+     <div class="pop pv live" data-card role="dialog" aria-label="Link preview"></div>
+    </div>
+   </div></div>
+   <p class="note">The preview is the same read-only projection live blocks use (ADR-072), so it checks your role and never shows more than opening the canvas would. Moving the pointer into the card keeps it open; <em>Esc</em> closes it. <em>Open</em> follows the link; <em>Open beside</em> asks the host to open it in a new tab or split (<code>UI_LiveBlockOpen</code>).</p>
+  </figure>
+
+  <figure class="fr" id="3b"><figcaption><b>3b</b>When the target is not what it was<span class="dim">880 × 330</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="880" style="width:55rem;height:20.625rem"><div class="oc">
+    <div class="state-row"><span class="lbl">No access</span><span class="cl na"><svg class="i"><use href="#i-lock"/></svg>No access</span><span class="why">The title is hidden too. Preview: “You don't have access to this canvas.” with <em>Request access</em> when the host supports it.</span></div>
+    <div class="state-row"><span class="lbl">Deleted</span><span class="cl del"><svg class="i"><use href="#i-file"/></svg>Hiring plan 2027</span><span class="why">The host answered “gone”. Struck through with the last title this canvas saved; <em>Remove link</em> in the preview.</span></div>
+    <div class="state-row"><span class="lbl">Block not found</span><span class="cl nf"><svg class="i"><use href="#i-alert"/></svg>SSO rollout plan <span class="blk">› Phase 3</span></span><span class="why">The canvas is there, the block is gone. Opens the canvas at the top; preview says “This block was deleted or moved”.</span></div>
+    <div class="state-row"><span class="lbl">Renamed or moved</span><span class="cl"><svg class="i"><use href="#i-file"/></svg>SSO rollout plan (Business plan)</span><span class="why">Nothing to do: links show the current title from the host.</span></div>
+    <div class="state-row"><span class="lbl">Older editor (0.4)</span><span style="color:var(--accent);text-decoration:underline">SSO rollout plan</span><span class="why">Shown as an ordinary link to the host URL and kept on save.</span></div>
+   </div></div></div>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f4">
+  <h2>4 · Phone <code>below 45em</code></h2>
+  <p>“Linked from” is a section at the end of the canvas and a sheet from the top bar. Long-press a link for its preview as a sheet. The <code>[[</code> picker sits above the keyboard.</p>
+  <div class="rv-row">
+   <figure class="fr phf" style="flex:0 1 auto"><figcaption><b>4a</b>Linked from at the end</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span><svg class="i sm"><use href="#i-globe"/></svg></span></div>
+     <div class="ph-hd"><button class="btn ic" aria-label="Back"><svg class="i"><use href="#i-left"/></svg></button><h3>SSO rollout plan</h3><button class="btn ic" aria-label="Linked from"><svg class="i"><use href="#i-arrow-ur"/></svg></button><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ph-b"><div class="doc">
+      <p style="color:var(--fg-2)">… Legal wants an answer before the Northwind pilot (owner: Lea).</p>
+      <div class="lf">
+       <div class="lf-h"><h2><svg class="i"><use href="#i-arrow-ur"/></svg>Linked from <span class="cnt">5</span></h2></div>
+       <div class="src" aria-expanded="true"><button class="src-h"><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><b>Q1 Platform roadmap</b><span class="when">now</span></button>
+        <div class="ref"><div class="ctx">in Identity · to Phase 2</div>Scope and dates live in <span class="hl">SSO rollout plan › Phase 2</span>.</div></div>
+       <div class="src" aria-expanded="true"><button class="src-h"><span class="ctile t-pink"><svg class="i sm"><use href="#i-file"/></svg></span><b>Security review: SAML</b><span class="when">Nov 24</span></button>
+        <div class="ref"><div class="ctx">in Decisions · 2 links</div>We follow the <span class="hl">SSO rollout plan</span> for the order of enforcement.</div></div>
+       <div class="src" aria-expanded="false"><button class="src-h"><svg class="i sm tw"><use href="#i-down"/></svg><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><b>Sprint 42 planning</b><span class="when">Nov 26</span></button></div>
+       <div class="src" aria-expanded="false"><button class="src-h"><svg class="i sm tw"><use href="#i-down"/></svg><span class="ctile t-green"><svg class="i sm"><use href="#i-file"/></svg></span><b>Customer interview: Northwind</b><span class="when">Nov 19</span></button></div>
+       <div class="um"><div class="lf-h"><h2><svg class="i"><use href="#i-at"/></svg>Unlinked mentions <span class="cnt">2</span></h2></div></div>
+      </div>
+     </div></div>
+    </div></div></div>
+   </figure>
+   <figure class="fr phf" style="flex:0 1 auto"><figcaption><b>4b</b>Long-press preview</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span><svg class="i sm"><use href="#i-globe"/></svg></span></div>
+     <div class="ph-hd"><button class="btn ic" aria-label="Back"><svg class="i"><use href="#i-left"/></svg></button><h3>Q1 Platform roadmap</h3></div>
+     <div class="ph-b" style="opacity:.45"><div class="doc"><p>Scope and dates live in <span class="cl" style="background:var(--accent-soft)"><svg class="i"><use href="#i-file"/></svg>SSO rollout plan</span>.</p></div></div>
+     <div class="sheet" style="padding-bottom:2.25rem">
+      <div class="grab"></div>
+      <div class="pv-h" style="padding:0 .25rem .5rem"><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><div class="tt"><b>SSO rollout plan</b><small>Engineering / Identity · edited 2 h ago by Lea Fischer</small></div></div>
+      <div class="pv-b" style="padding:0 .25rem .75rem">Goal: every Acme Docs workspace on the Business plan can require single sign-on by Feb 15. Work is tracked in Sprint 42 planning; decisions are in Security review: SAML.</div>
+      <div style="display:grid;gap:.375rem">
+       <button class="btn pri" style="height:2.75rem;justify-content:center">Open</button>
+       <button class="btn sec" style="height:2.75rem;justify-content:center"><svg class="i"><use href="#i-arrow-ur"/></svg>Linked from 5</button>
+       <button class="btn sec" style="height:2.75rem;justify-content:center"><svg class="i"><use href="#i-link"/></svg>Copy link</button>
+      </div>
+     </div>
+    </div></div></div>
+   </figure>
+   <figure class="fr phf" style="flex:0 1 auto"><figcaption><b>4c</b><code>[[</code> above the keyboard</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span><svg class="i sm"><use href="#i-globe"/></svg></span></div>
+     <div class="ph-hd"><button class="btn ic" aria-label="Done"><svg class="i"><use href="#i-check"/></svg></button><h3>Weekly sync, Nov 30</h3></div>
+     <div class="ph-b"><div class="doc"><h2 style="margin-top:0">Action items</h2><p>Marco to confirm the fallback in <span class="typed">[[sso</span><span class="caret"></span></p></div></div>
+     <div class="ph-pk" role="listbox" aria-label="Link a canvas">
+      <div class="mi on" role="option" aria-selected="true"><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><span style="display:grid"><b style="font-weight:500">SSO rollout plan</b><small>Engineering · 2 h ago</small></span></div>
+      <div class="mi" role="option"><span class="ctile t-pink"><svg class="i sm"><use href="#i-file"/></svg></span><span style="display:grid"><b style="font-weight:500">Security review: SAML and SSO</b><small>Engineering · Nov 24</small></span></div>
+      <div class="mi" role="option"><span class="ctile t-amber"><svg class="i sm"><use href="#i-file"/></svg></span><span style="display:grid"><b style="font-weight:500">SSO support macros</b><small>Ops · Oct 30</small></span></div>
+     </div>
+     <div class="ph-kb" aria-hidden="true"><span>q</span><span>w</span><span>e</span><span>r</span><span>t</span><span>y</span><span>u</span><span>i</span><span>o</span><span>p</span><span>a</span><span>s</span><span>d</span><span>f</span><span>g</span><span>h</span><span>j</span><span>k</span><span>l</span><span>#</span><span>z</span><span>x</span><span>c</span><span>v</span><span>b</span><span>n</span><span>m</span><span>[</span><span>]</span><span>↵</span></div>
+    </div></div></div>
+   </figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f5">
+  <h2>5 · Empty, off and limited <code>[host.flags] links</code></h2>
+  <div class="rv-row">
+   <figure class="fr" style="flex:1 1 22rem"><figcaption><b>5a</b>Nothing links here yet</figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="560" style="width:35rem;height:13rem"><div class="oc" style="padding:1.25rem 1.5rem">
+     <div class="lf-h"><h2 style="font-size:1rem;margin:0;display:flex;gap:.5rem;align-items:center"><svg class="i"><use href="#i-arrow-ur"/></svg>Linked from</h2></div>
+     <p class="hint" style="font-size:.8125rem;margin:.25rem 0 .75rem">No canvas you can open links here yet. Type <code>[[</code> in another canvas to link this one, or copy a link to any block.</p>
+     <div><button class="btn sec"><svg class="i"><use href="#i-link"/></svg>Copy link to this canvas</button></div>
+    </div></div></div>
+   </figure>
+   <figure class="fr" style="flex:1 1 22rem"><figcaption><b>5b</b>Host without search</figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="560" style="width:35rem;height:13rem"><div class="oc" style="padding:1.25rem 1.5rem">
+     <div class="lf-h"><h2 style="font-size:1rem;margin:0;display:flex;gap:.5rem;align-items:center"><svg class="i"><use href="#i-at"/></svg>Unlinked mentions</h2></div>
+     <p class="hint" style="font-size:.8125rem;margin:.25rem 0 0">Not shown. Unlinked mentions use your organisation's search, which Acme Docs has not connected. Linked from still works.</p>
+     <p class="hint" style="font-size:.75rem;margin:.75rem 0 0">Operators: the section appears when the host answers <code>GET /search</code> (ADR-065).</p>
+    </div></div></div>
+   </figure>
+  </div>
+  <p class="note">With <code>[host.flags] links</code> off, nothing on this page appears: <code>[[</code> inserts an ordinary link through the host's picker as in 0.4, and pasted URLs stay plain links.</p>
+ </section>
+
+ <section class="rv-sec" id="f6">
+  <h2>6 · Keyboard and access</h2>
+  <p>Every link is a real link (Tab, Enter). The panel is a list of groups; each group is a disclosure button followed by its references, each a link to that place in the source canvas.</p>
+  <figure class="fr"><div class="fr-vp" style="border-radius:.75rem;box-shadow:0 0 0 1px var(--rv-line)"><table class="kbd-t">
+   <tr><td>[[</td><td>Link a canvas; type to search, ↑ ↓ to move, Enter to insert</td></tr>
+   <tr><td>[[ … #</td><td>Link a heading, database or row in the chosen canvas</td></tr>
+   <tr><td>⌘ / Ctrl + ⇧ + L</td><td>Copy link to the current block</td></tr>
+   <tr><td>Space on a link</td><td>Show the preview; Esc closes it; Tab moves into it</td></tr>
+   <tr><td>⌥ / Alt + Enter on a link</td><td>Open beside (host decides: new tab or split)</td></tr>
+   <tr><td>⌘ / Ctrl + ⇧ + B</td><td>Open “Linked from” in the side panel</td></tr>
+   <tr><td>Enter on a reference</td><td>Open the linking canvas at that block</td></tr>
+  </table></div>
+  <p class="note">Counts are announced with the group (“Q1 Platform roadmap, 1 reference, to Phase 2”). <em>Link</em> on a mention announces “Linked in Support macros. Undo available.” Previews never open on focus alone, only with Space, so screen-reader users are not interrupted.</p>
+  </figure>
+ </section>
+
+
+</main>
+<script>
+// Review page: theme and fit. Frames keep their real size (data-w, CSS px at a 16 px root) and are scaled to the column when "Fit to width" is on.
+(function(){
+  var root=document.documentElement, KEY='v05-links-theme', FKEY='v05-links-fit';
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function sysDark(){return window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches}
+  function applyTheme(t){root.setAttribute('data-theme',t);document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.setAttribute('aria-pressed',String(b.getAttribute('data-theme-btn')===t))})}
+  applyTheme(get(KEY)||(sysDark()?'dark':'light'));
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.addEventListener('click',function(){var t=b.getAttribute('data-theme-btn');applyTheme(t);set(KEY,t)})});
+  var fit=get(FKEY)!=='0';
+  function layout(){
+    var wrap=document.querySelector('.rv-wrap');var cs=getComputedStyle(wrap);var avail=wrap.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+    var rem=parseFloat(getComputedStyle(root).fontSize)/16;
+    document.querySelectorAll('.fr-in[data-w]').forEach(function(el){
+      var w=+el.getAttribute('data-w')*rem;var need=w+(el.classList.contains('phone')?44*rem:0);
+      el.style.zoom=fit?Math.min(1,avail/need):1;
+    });
+    document.querySelectorAll('[data-fit]').forEach(function(b){b.setAttribute('aria-pressed',String((b.getAttribute('data-fit')==='1')===fit))});
+  }
+  document.querySelectorAll('[data-fit]').forEach(function(b){b.addEventListener('click',function(){fit=b.getAttribute('data-fit')==='1';set(FKEY,fit?'1':'0');layout()})});
+  window.addEventListener('resize',layout);layout();
+})();
+</script>
+<script>
+(function(){
+// 2a: Linked from, live
+var app=document.getElementById('lfapp'); if(!app) return;
+var SRC=[
+ {id:'q1',t:'Q1 Platform roadmap',tone:'',path:'Engineering / Planning',when:'now',refs:[{k:'link',blk:'Phase 2',ctx:'in Identity',html:'Scope and dates live in <span class="hl">SSO rollout plan › Phase 2: enforce SSO</span>.'}]},
+ {id:'saml',t:'Security review: SAML',tone:'t-pink',path:'Engineering / Security',when:'Nov 24',refs:[{k:'link',blk:null,ctx:'in Context',html:'We follow the <span class="hl">SSO rollout plan</span> for the order of enforcement across plans.'},{k:'link',blk:'Phase 2',ctx:'in Decisions',html:'Owners keep a password fallback for 14 days after <span class="hl">enforcement</span>, then it turns off.'}]},
+ {id:'sprint',t:'Sprint 42 planning',tone:'',path:'Engineering / Sprints',when:'Nov 26',refs:[{k:'relation',blk:'Rollout timeline',ctx:'in Sprint 42 backlog › Ship SSO login for the admin console',html:'Relation <b>Plan item</b> → <span class="hl">Rollout timeline › Admin console login</span>'}]},
+ {id:'sync',t:'Weekly sync, Nov 23',tone:'',path:'Engineering / Meetings',when:'Nov 23',refs:[{k:'link',blk:'Phase 2',ctx:'in Action items',html:'Marco to confirm the 14-day fallback in <span class="hl">Phase 2</span> with support.'}]},
+ {id:'nw',t:'Customer interview: Northwind',tone:'t-green',path:'Customers / Interviews',when:'Nov 19',refs:[{k:'embed',blk:'Rollout timeline',ctx:'live block',html:'Shows <span class="hl">Rollout timeline</span> from this canvas as a live block, filtered to Northwind.'}]}
+];
+var UM=[
+ {id:'macros',t:'SSO support macros',tone:'t-amber',path:'Ops / Support',when:'Oct 30',ctx:'in Replies › Enterprise',html:'Thanks for asking. The dates are in our <span class="hl">SSO rollout plan</span>; we will email owners two weeks before enforcement.',edit:true},
+ {id:'rel',t:'Release 4.2 checklist',tone:'',path:'Engineering / Releases',when:'Nov 27',ctx:'in Not in this release',html:'Require SSO toggle (see the <span class="hl">SSO rollout plan</span>, Phase 2).',edit:false}
+];
+var kind='all', blk=null;
+var list=app.querySelector('[data-list]'), ulist=app.querySelector('[data-ulist]'), toast=app.querySelector('[data-toast]');
+function tile(s){return '<span class="ctile '+s.tone+'"><svg class="i sm"><use href="#i-file"/></svg></span>'}
+function render(){
+ var html='',n=0;
+ SRC.forEach(function(s){
+  var refs=s.refs.filter(function(r){return (kind==='all'||r.k===kind)&&(!blk||r.blk===blk)});
+  if(!refs.length) return; n++;
+  var open=s.open!==false;
+  html+='<div class="src" aria-expanded="'+open+'"><button class="src-h" data-tog="'+s.id+'" aria-expanded="'+open+'"><svg class="i sm tw"><use href="#i-down"/></svg>'+tile(s)+'<b>'+s.t+'</b><span class="path">'+s.path+' · '+refs.length+' reference'+(refs.length>1?'s':'')+'</span><span class="when">'+s.when+'</span></button>'+
+   refs.map(function(r){return '<a class="ref" href="#2a" style="display:block;color:inherit;text-decoration:none"><div class="ctx"><svg class="i sm"><use href="#'+(r.k==='embed'?'i-layers':r.k==='relation'?'i-table':'i-text')+'"/></svg>'+r.ctx+(r.blk?' · to '+r.blk:'')+'</div>'+r.html+'</a>'}).join('')+'</div>';
+ });
+ if(!n) html='<p class="hint" style="padding:.5rem 0">No references of this kind.</p>';
+ list.innerHTML=html;
+ app.querySelector('[data-count]').textContent=n+' canvas'+(n===1?'':'es');
+ ulist.innerHTML=UM.map(function(u){
+  return '<div class="src" aria-expanded="true"><div class="src-h" style="cursor:default">'+tile(u)+'<b>'+u.t+'</b><span class="path">'+u.path+'</span><span class="when">'+u.when+'</span></div><div class="ref" style="cursor:default"><div class="ctx"><svg class="i sm"><use href="#i-text"/></svg>'+u.ctx+'</div>'+u.html+'<div class="um-act">'+(u.edit?'<button class="btn pri" data-link="'+u.id+'"><svg class="i sm"><use href="#i-link"/></svg>Link</button>':'<button class="btn" disabled title="You can view Release 4.2 checklist but not edit it">Can\'t edit</button>')+'</div></div></div>';
+ }).join('')||'<p class="hint">No unlinked mentions.</p>';
+ app.querySelector('[data-ucount]').textContent=UM.length;
+ app.querySelector('[data-linkall]').disabled=!UM.some(function(u){return u.edit});
+}
+list.addEventListener('click',function(e){var b=e.target.closest('[data-tog]');if(!b)return;var s=SRC.find(function(x){return x.id===b.dataset.tog});s.open=s.open===false;render()});
+app.querySelectorAll('[data-kind] button').forEach(function(b){b.addEventListener('click',function(){kind=b.dataset.k;app.querySelectorAll('[data-kind] button').forEach(function(x){x.setAttribute('aria-pressed',String(x===b))});render()})});
+var bf=app.querySelector('[data-blockf]');
+bf.addEventListener('click',function(){blk=blk?null:(blk===null?'Phase 2':null);bf.classList.toggle('on',!!blk);bf.querySelector('span').textContent=blk?'Phase 2: enforce SSO':'Any block';render()});
+function link(id){
+ var i=UM.findIndex(function(u){return u.id===id}); if(i<0) return; var u=UM.splice(i,1)[0];
+ SRC.unshift({id:u.id,t:u.t,tone:u.tone,path:u.path,when:'now',refs:[{k:'link',blk:null,ctx:u.ctx,html:u.html}]});
+ render(); show('Linked in '+u.t+'.', function(){SRC.shift();UM.splice(i,0,u);render()});
+}
+function show(msg,undo){toast.hidden=false;toast.innerHTML='<svg class="i" style="color:var(--green-fg)"><use href="#i-circle-check"/></svg>'+msg+' <button class="btn" data-undo>Undo</button>';toast.querySelector('[data-undo]').onclick=function(){undo();toast.hidden=true};clearTimeout(show.t);show.t=setTimeout(function(){toast.hidden=true},5000)}
+ulist.addEventListener('click',function(e){var b=e.target.closest('[data-link]');if(b)link(b.dataset.link)});
+app.querySelector('[data-linkall]').addEventListener('click',function(){UM.filter(function(u){return u.edit}).map(function(u){return u.id}).forEach(link)});
+render();
+})();
+(function(){
+// 3a: hover preview, live
+var app=document.getElementById('pvapp'); if(!app) return;
+var card=app.querySelector('[data-card]');
+var P={
+ interview:{tone:'t-green',icon:'i-file',t:'Customer interview: Northwind',s:'Customers / Interviews · edited Nov 19 by Priya Raman',b:'<h5>Summary</h5>Northwind (1,800 seats) will expand to the Business plan if owners can require SSO before their February audit. They use one identity provider for 6 subsidiaries and need per-domain rules.',f:'Linked from 2 · Links to 4'},
+ saml:{tone:'t-pink',icon:'i-heading',t:'Decisions',s:'in Security review: SAML · Engineering / Security · edited Nov 24 by Lea Fischer',b:'1. SAML 2.0 first; OIDC in Q2.<br>2. Owners keep a password fallback for 14 days after enforcement, then it turns off.<br>3. Guests are exempt until the guest policy is decided.',f:'Heading · 3 items'},
+ row:{tone:'',icon:'i-table',t:'Ship SSO login for the admin console',s:'Row in Sprint 42 backlog · Sprint 42 planning',b:'<div style="display:grid;grid-template-columns:5.5rem 1fr;gap:.25rem .5rem;color:var(--fg)"><span style="color:var(--fg-2)">Owner</span><span>Jonas Weber</span><span style="color:var(--fg-2)">Status</span><span><span class="pill p-blue">In progress</span></span><span style="color:var(--fg-2)">Due</span><span>Nov 28</span><span style="color:var(--fg-2)">Estimate</span><span>16 h</span></div>',f:'Database row'}
+};
+var hideT, showT, cur=null;
+function open(a){
+ var p=P[a.dataset.pv]; cur=a;
+ card.innerHTML='<div class="pv-h"><span class="ctile '+p.tone+'"><svg class="i sm"><use href="#'+p.icon+'"/></svg></span><div class="tt"><b>'+p.t+'</b><small>'+p.s+'</small></div></div><div class="pv-b">'+p.b+'</div><div class="pv-f"><span>'+p.f+'</span><span class="sp"></span><button class="btn">Open beside</button><button class="btn pri">Open</button></div>';
+ var r=a.getBoundingClientRect(), ar=app.getBoundingClientRect(), z=parseFloat(app.closest('.fr-in').style.zoom||1);
+ var x=(r.left-ar.left)/z, y=(r.bottom-ar.top)/z+6;
+ card.style.left=Math.max(12,Math.min(x,app.offsetWidth-360))+'px'; card.style.top=y+'px';
+ card.classList.add('show');
+}
+function close(){card.classList.remove('show');cur=null}
+app.querySelectorAll('[data-pv]').forEach(function(a){
+ a.addEventListener('click',function(e){e.preventDefault()});
+ a.addEventListener('mouseenter',function(){clearTimeout(hideT);clearTimeout(showT);showT=setTimeout(function(){open(a)},400)});
+ a.addEventListener('mouseleave',function(){clearTimeout(showT);hideT=setTimeout(close,250)});
+ a.addEventListener('keydown',function(e){if(e.key===' '){e.preventDefault();cur===a?close():open(a)}else if(e.key==='Escape')close()});
+});
+card.addEventListener('mouseenter',function(){clearTimeout(hideT)});
+card.addEventListener('mouseleave',function(){hideT=setTimeout(close,250)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')close()});
+})();
+</script>
+</body></html>

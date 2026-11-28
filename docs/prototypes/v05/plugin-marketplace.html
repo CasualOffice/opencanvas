@@ -1,0 +1,901 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Plugin marketplace and manager</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Review page of numbered frames; each frame is the real OpenCanvas editor at a fixed size. Tokens match the approved v0.4 prototypes (databases.html, timeline.html). rem for type and spacing (ADR-050); breakpoints in em. */
+:root{--page:#f1f1ef;--app:#ffffff;--panel:#fbfbfa;--sunk:#f4f4f2;--pop:#ffffff;--hover:rgba(24,24,32,.045);--press:rgba(24,24,32,.08);--line:rgba(24,24,32,.085);--line-2:rgba(24,24,32,.15);--fg:#18181b;--fg-2:#55555e;--fg-3:#8b8b95;--fg-4:#b3b3bb;--accent:#2a5ad7;--accent-soft:#ecf1fd;--accent-ring:rgba(42,90,215,.28);--accent-fg:#fff;--gray-bg:#efefed;--gray-fg:#55555c;--blue-bg:#e6eefd;--blue-fg:#2350c8;--amber-bg:#fcf0d9;--amber-fg:#8f5300;--green-bg:#e2f3e8;--green-fg:#17703f;--red-bg:#fde6e6;--red-fg:#b12424;--purple-bg:#efe8fd;--purple-fg:#6538c4;--pink-bg:#fce6f0;--pink-fg:#ad2c66;--teal-bg:#dff3f0;--teal-fg:#0f6b5f;--u0:#2a5ad7;--u1:#7a45f0;--u2:#e5602a;--u3:#0e9a78;--u4:#d63f78;--sh-card:0 1px 2px rgba(20,20,30,.04),0 8px 24px -12px rgba(20,20,30,.12);--sh-pop:0 0 0 1px rgba(24,24,32,.07),0 16px 40px -12px rgba(20,20,30,.22),0 4px 10px -4px rgba(20,20,30,.08);--rv-bg:#eeeeec;--rv-fg:#18181b;--rv-fg2:#55555e;--rv-fg3:#85858f;--rv-line:rgba(24,24,32,.1);--rv-chip:#fff;--rv-acc:#2a5ad7;--font:"Geist",ui-sans-serif,-apple-system,"Segoe UI",system-ui,sans-serif;--mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;color-scheme:light}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}}
+:root[data-theme="dark"]{--page:#0b0b0d;--app:#141417;--panel:#18181c;--sunk:#1d1d22;--pop:#1f1f24;--hover:rgba(255,255,255,.05);--press:rgba(255,255,255,.09);--line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.14);--fg:#ededf0;--fg-2:#a9a9b4;--fg-3:#787883;--fg-4:#55555e;--accent:#86a5ff;--accent-soft:#1c2440;--accent-ring:rgba(134,165,255,.35);--accent-fg:#0b1022;--gray-bg:#26262b;--gray-fg:#b7b7c0;--blue-bg:#1a2746;--blue-fg:#94b2ff;--amber-bg:#352710;--amber-fg:#f3be66;--green-bg:#14301f;--green-fg:#72d79d;--red-bg:#3a1719;--red-fg:#ff9c9c;--purple-bg:#2a2045;--purple-fg:#c0a6ff;--pink-bg:#3a1828;--pink-fg:#ff8fbf;--teal-bg:#10302c;--teal-fg:#5fd6c2;--u0:#86a5ff;--u1:#a585ff;--u2:#ff8a57;--u3:#3fcfa6;--u4:#ff72a6;--sh-card:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);--sh-pop:0 0 0 1px rgba(255,255,255,.08),0 18px 44px -12px rgba(0,0,0,.7);--rv-bg:#0c0c0e;--rv-fg:#ededf0;--rv-fg2:#a9a9b4;--rv-fg3:#787883;--rv-line:rgba(255,255,255,.09);--rv-chip:#1f1f24;--rv-acc:#86a5ff;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--rv-bg);color:var(--rv-fg);font-family:var(--font);font-size:.875rem;-webkit-font-smoothing:antialiased}
+svg.i{width:1rem;height:1rem;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:inline-block;vertical-align:middle}
+svg.i.sm{width:.875rem;height:.875rem}svg.i.lg{width:1.25rem;height:1.25rem}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+code{font-family:var(--mono);font-size:.85em}
+
+/* ---------- review page ---------- */
+.rv-top{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--rv-bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--rv-line)}
+.rv-top-in{max-width:87.5rem;margin:0 auto;padding:.75rem max(1rem,env(safe-area-inset-left,0px));display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+.rv-title{font-weight:600;font-size:.9375rem;letter-spacing:-.01em;display:flex;gap:.625rem;align-items:center;min-width:0;flex-wrap:wrap}
+.rv-title small{font-weight:400;color:var(--rv-fg3);font-size:.8125rem}
+.rv-seg{display:inline-flex;padding:.1875rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line)}
+.rv-seg button{font-size:.78rem;height:1.75rem;padding:0 .75rem;border-radius:999px;border:0;background:transparent;color:var(--rv-fg2);cursor:pointer;display:inline-flex;gap:.375rem;align-items:center}
+.rv-seg button[aria-pressed="true"]{background:var(--rv-fg);color:var(--rv-bg)}
+.rv-ctl{margin-left:auto;display:flex;gap:.5rem;flex-wrap:wrap}
+.rv-toc{max-width:87.5rem;margin:0 auto;padding:0 1rem .625rem;display:flex;gap:.25rem;overflow-x:auto;scrollbar-width:none}
+.rv-toc a{flex:none;font-size:.75rem;color:var(--rv-fg2);text-decoration:none;padding:.25rem .5625rem;border-radius:999px;background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);white-space:nowrap}
+.rv-toc a:hover{color:var(--rv-fg)}
+.rv-wrap{max-width:87.5rem;margin:0 auto;padding-block:1.5rem 5rem;padding-left:max(1rem,env(safe-area-inset-left,0px));padding-right:max(1rem,env(safe-area-inset-right,0px))}
+.rv-intro{max-width:47.5rem;line-height:1.65;color:var(--rv-fg2);margin:.5rem 0 1.75rem}
+.rv-intro h1{font-size:1.75rem;letter-spacing:-.02em;color:var(--rv-fg);margin:0 0 .5rem;font-weight:600;text-wrap:balance}
+.rv-intro p{margin:0 0 .5rem}
+.dec{background:var(--rv-chip);box-shadow:inset 0 0 0 1px var(--rv-line);border-radius:.75rem;padding:.875rem 1rem;margin:0 0 1.25rem;font-size:.8125rem;line-height:1.6}
+.dec ol{margin:.375rem 0 0;padding-left:1.25rem}.dec li{margin:.25rem 0}
+.rv-sec{margin:3.5rem 0 0;scroll-margin-top:7rem}
+.rv-sec>h2{font-size:1.375rem;letter-spacing:-.015em;margin:0 0 .375rem;font-weight:600;display:flex;gap:.625rem;align-items:baseline;flex-wrap:wrap}
+.rv-sec>h2 code{font-size:.8125rem;color:var(--rv-acc);font-weight:500}
+.rv-sec>p{max-width:51rem;color:var(--rv-fg2);line-height:1.6;margin:0 0 1.25rem}
+.rv-row{display:flex;flex-wrap:wrap;gap:1.75rem;align-items:flex-start}
+.fr{margin:0 0 2rem;min-width:0;scroll-margin-top:7rem;max-width:100%}
+.fr figcaption{display:flex;gap:.625rem;align-items:center;margin:0 0 .625rem;font-weight:500;flex-wrap:wrap}
+.fr figcaption b{font-family:var(--mono);font-size:.75rem;font-weight:500;padding:.125rem .4375rem;border-radius:.375rem;background:var(--rv-fg);color:var(--rv-bg)}
+.fr figcaption .dim{color:var(--rv-fg3);font-weight:400;font-size:.75rem;font-family:var(--mono)}
+.fr-vp{max-width:100%;overflow:auto;border-radius:.875rem}
+.fr-in{position:relative;overflow:hidden;border-radius:.875rem;box-shadow:0 0 0 1px var(--rv-line),0 30px 70px -40px rgba(0,0,0,.45);background:var(--page)}
+.fr-in.phone{border-radius:2.75rem;box-shadow:0 0 0 1px var(--rv-line),0 0 0 9px #1c1c1f,0 0 0 10px #3a3a3e,0 30px 70px -30px rgba(0,0,0,.5);margin:.75rem}
+.note{max-width:47.5rem;font-size:.8125rem;line-height:1.6;color:var(--rv-fg2);margin:.75rem 0 0}
+.note em{font-style:normal;color:var(--rv-fg);font-weight:500}
+.fr.phf .note{max-width:25.6rem}
+.fr.phf .fr-vp{overflow:visible;max-width:100%;padding:.75rem}
+.fr.phf .fr-in.phone{margin:0}
+.fr.phf{width:27rem;max-width:100%}
+@media (max-width:40em){.rv-ctl{margin-left:0}.rv-intro h1{font-size:1.375rem}}
+
+/* ---------- OpenCanvas editor chrome ---------- */
+.oc{background:var(--app);color:var(--fg);width:100%;height:100%;display:flex;flex-direction:column;font-size:.875rem;line-height:1.5;position:relative}
+.oct{height:3rem;flex:none;display:flex;align-items:center;gap:.625rem;padding:0 .875rem;border-bottom:1px solid var(--line)}
+.crumbs{display:flex;align-items:center;gap:.375rem;min-width:0;white-space:nowrap;overflow:hidden}
+.crumbs .par{color:var(--fg-3)}.crumbs .sep{color:var(--fg-4)}
+.crumbs .cname{font-weight:500}
+.ctile{width:1.375rem;height:1.375rem;border-radius:.375rem;display:inline-grid;place-items:center;flex:none;background:var(--blue-bg);color:var(--blue-fg)}
+.ctile.t-purple{background:var(--purple-bg);color:var(--purple-fg)}.ctile.t-green{background:var(--green-bg);color:var(--green-fg)}.ctile.t-amber{background:var(--amber-bg);color:var(--amber-fg)}.ctile.t-pink{background:var(--pink-bg);color:var(--pink-fg)}.ctile.t-teal{background:var(--teal-bg);color:var(--teal-fg)}.ctile.t-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.ocst{display:inline-flex;gap:.3rem;align-items:center;color:var(--fg-3);font-size:.75rem}
+.stack{display:flex}.stack .av{box-shadow:0 0 0 2px var(--app);margin-left:-.375rem}.stack .av:first-child{margin-left:0}
+.av{display:inline-grid;place-items:center;border-radius:50%;color:#fff;font-weight:600;flex:none;width:1.625rem;height:1.625rem;font-size:.625rem;letter-spacing:.01em}
+.av.s{width:1.25rem;height:1.25rem;font-size:.5625rem}
+.ocb{flex:1;min-height:0;display:flex;position:relative}
+.doc{flex:1;min-width:0;overflow:auto;padding:2.5rem 3.5rem 3rem}
+.doc-in{max-width:44rem;margin:0 auto}
+.doc h1{font-size:2rem;letter-spacing:-.02em;margin:0 0 .25rem;font-weight:700}
+.doc .meta{color:var(--fg-3);font-size:.8125rem;margin:0 0 1.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.doc h2{font-size:1.25rem;margin:1.75rem 0 .5rem;font-weight:600;letter-spacing:-.01em}
+.doc p{margin:0 0 .75rem;line-height:1.65}
+.doc ul{margin:0 0 .75rem;padding-left:1.25rem;line-height:1.65}
+.side{width:21rem;flex:none;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+.side-h{display:flex;align-items:center;gap:.5rem;padding:.75rem .875rem;border-bottom:1px solid var(--line);font-weight:600}
+.side-b{flex:1;overflow:auto;padding:.5rem}
+.btn{display:inline-flex;align-items:center;gap:.375rem;height:1.875rem;padding:0 .625rem;border-radius:.5rem;border:0;background:none;color:var(--fg-2);font-size:.8125rem;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--hover);color:var(--fg)}
+.btn.on{background:var(--accent-soft);color:var(--accent)}
+.btn.pri{background:var(--accent);color:var(--accent-fg)}
+.btn.sec{background:var(--sunk);color:var(--fg)}
+.btn.dan{background:var(--red-bg);color:var(--red-fg)}
+.btn.ic{width:1.875rem;padding:0;justify-content:center}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.seg{display:inline-flex;padding:.15rem;border-radius:.5rem;background:var(--sunk)}
+.seg button{border:0;background:none;height:1.5rem;padding:0 .55rem;border-radius:.375rem;font-size:.75rem;color:var(--fg-2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--app);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.sp{flex:1}
+.pill{display:inline-flex;align-items:center;gap:.25rem;height:1.25rem;padding:0 .4rem;border-radius:.3rem;font-size:.6875rem;font-weight:500;white-space:nowrap}
+.p-gray{background:var(--gray-bg);color:var(--gray-fg)}.p-blue{background:var(--blue-bg);color:var(--blue-fg)}.p-green{background:var(--green-bg);color:var(--green-fg)}.p-amber{background:var(--amber-bg);color:var(--amber-fg)}.p-red{background:var(--red-bg);color:var(--red-fg)}.p-purple{background:var(--purple-bg);color:var(--purple-fg)}.p-pink{background:var(--pink-bg);color:var(--pink-fg)}.p-teal{background:var(--teal-bg);color:var(--teal-fg)}
+.pop{position:absolute;background:var(--pop);color:var(--fg);border-radius:.75rem;box-shadow:var(--sh-pop);padding:.5rem;z-index:10;font-size:.8125rem}
+.pop h4{margin:.25rem .4rem .5rem;font-size:.6875rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.mi{display:flex;gap:.5rem;align-items:center;padding:.4rem .5rem;border-radius:.5rem;cursor:pointer;min-height:2rem}
+.mi:hover,.mi.on{background:var(--hover)}
+.mi kbd,.kbd{font-family:var(--mono);font-size:.6875rem;color:var(--fg-3)}
+.mi kbd{margin-left:auto}
+.mi small{color:var(--fg-2);font-size:.75rem}
+.sepl{height:1px;background:var(--line);margin:.25rem 0}
+.hint{color:var(--fg-2);font-size:.75rem;line-height:1.5}
+.sw{width:1.75rem;height:1rem;border-radius:999px;background:var(--accent);position:relative;flex:none;border:0;padding:0;cursor:pointer}
+.sw::after{content:"";position:absolute;right:.125rem;top:.125rem;width:.75rem;height:.75rem;border-radius:50%;background:#fff}
+.sw.off,.sw[aria-checked="false"]{background:var(--line-2)}.sw.off::after,.sw[aria-checked="false"]::after{left:.125rem;right:auto}
+.inp{display:flex;align-items:center;gap:.4rem;height:2rem;padding:0 .6rem;border-radius:.5rem;background:var(--sunk);color:var(--fg);box-shadow:inset 0 0 0 1px var(--line)}
+.inp input{border:0;background:none;font:inherit;color:inherit;outline:none;flex:1;min-width:0}
+.inp.f{box-shadow:inset 0 0 0 1.5px var(--accent),0 0 0 3px var(--accent-ring)}
+.mask{position:absolute;inset:0;background:rgba(10,10,14,.32);display:grid;place-items:center;z-index:20}
+.dlg{background:var(--pop);color:var(--fg);border-radius:1rem;box-shadow:var(--sh-pop);width:min(34rem,calc(100% - 2rem));max-height:calc(100% - 2rem);overflow:auto;display:flex;flex-direction:column}
+.dlg-h{display:flex;align-items:flex-start;gap:.75rem;padding:1rem 1.125rem .5rem}
+.dlg-h h3{margin:0;font-size:1.0625rem;font-weight:600}
+.dlg-h p{margin:.125rem 0 0;color:var(--fg-2);font-size:.8125rem}
+.dlg-b{padding:.5rem 1.125rem 1rem}
+.dlg-f{display:flex;gap:.5rem;justify-content:flex-end;padding:.75rem 1.125rem;border-top:1px solid var(--line);flex-wrap:wrap}
+.toast{position:absolute;left:50%;bottom:1rem;transform:translateX(-50%);background:var(--pop);color:var(--fg);box-shadow:var(--sh-pop);border-radius:.75rem;padding:.6rem .75rem;display:flex;gap:.6rem;align-items:center;z-index:30;font-size:.8125rem;max-width:calc(100% - 2rem);flex-wrap:wrap}
+.tip{position:absolute;z-index:40;background:var(--fg);color:var(--app);font-size:.6875rem;padding:.25rem .45rem;border-radius:.375rem;white-space:nowrap;pointer-events:none}
+
+/* phone */
+.ph{width:24.375rem;height:52.75rem;background:var(--app);color:var(--fg);display:flex;flex-direction:column;font-size:.875rem;position:relative;overflow:hidden}
+.ph-st{height:2.9rem;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 1.75rem 0 2rem;font-weight:600;font-size:.9rem}
+.ph-hd{display:flex;align-items:center;gap:.5rem;padding:.25rem .75rem .5rem;flex:none}
+.ph-hd h3{margin:0;font-size:1.0625rem;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ph-b{flex:1;min-height:0;overflow:auto}
+.ph-dock{margin-top:auto;flex:none;border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:.5rem 0 1.75rem;color:var(--fg-2)}
+.ph-dock button{border:0;background:none;display:grid;gap:.15rem;place-items:center;font-size:.625rem;cursor:pointer;min-width:2.75rem;min-height:2.75rem}
+.ph-dock button.on{color:var(--accent)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--pop);border-radius:1.25rem 1.25rem 0 0;box-shadow:var(--sh-pop);padding:.5rem 1rem 2rem;z-index:5}
+.sheet .grab{width:2.25rem;height:.3rem;border-radius:999px;background:var(--line-2);margin:0 auto .75rem}
+.kbd-t{width:100%;border-collapse:collapse;font-size:.8125rem;background:var(--app);color:var(--fg)}
+.kbd-t td,.kbd-t th{padding:.5rem .75rem;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}
+.kbd-t td:first-child{white-space:nowrap;font-family:var(--mono);font-size:.75rem;color:var(--fg-2);width:13rem}
+/* ---------- marketplace ---------- */
+.toast{width:max-content}
+.t-blue{background:var(--blue-bg);color:var(--blue-fg)}.t-purple{background:var(--purple-bg);color:var(--purple-fg)}.t-green{background:var(--green-bg);color:var(--green-fg)}.t-amber{background:var(--amber-bg);color:var(--amber-fg)}.t-red{background:var(--red-bg);color:var(--red-fg)}.t-pink{background:var(--pink-bg);color:var(--pink-fg)}.t-teal{background:var(--teal-bg);color:var(--teal-fg)}.t-gray{background:var(--gray-bg);color:var(--gray-fg)}
+.mk{flex:1;min-height:0;display:flex}
+.mk-nav{width:14.5rem;flex:none;border-right:1px solid var(--line);background:var(--panel);padding:.75rem .5rem;display:flex;flex-direction:column;gap:.125rem;overflow:auto}
+.mk-nav .cap{font-size:.6875rem;font-weight:600;color:var(--fg-2);text-transform:uppercase;letter-spacing:.04em;padding:.875rem .625rem .25rem}
+.mk-nav .cap:first-child{padding-top:.25rem}
+.nv{display:flex;align-items:center;gap:.5rem;min-height:2rem;padding:0 .625rem;border-radius:.5rem;border:0;background:none;color:var(--fg-2);cursor:pointer;text-align:left;width:100%;font-size:.8125rem}
+.nv:hover{background:var(--hover);color:var(--fg)}
+.nv[aria-current="true"]{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.nv .n{margin-left:auto;font-size:.6875rem;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.nv .bd{margin-left:auto;font-size:.625rem;font-weight:600;min-width:1.125rem;height:1.125rem;padding:0 .3rem;border-radius:999px;background:var(--accent);color:var(--accent-fg);display:inline-grid;place-items:center}
+.mk-main{flex:1;min-width:0;overflow:auto;padding:1.25rem 1.5rem 2rem}
+.mk-hd{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
+.mk-hd h2{margin:0;font-size:1.25rem;font-weight:600;letter-spacing:-.01em}
+.mk-sub{display:flex;align-items:center;gap:.75rem;margin:1.25rem 0 .625rem;flex-wrap:wrap}
+.mk-sub h3{margin:0;font-size:.875rem;font-weight:600}
+.mk-sub .hint{margin-left:auto}
+.chk{display:inline-flex;align-items:center;gap:.4rem;font-size:.8125rem;color:var(--fg-2);cursor:pointer;white-space:nowrap}
+.chk input{accent-color:var(--accent);width:.9rem;height:.9rem;margin:0}
+.feat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.fc{border-radius:.875rem;padding:1rem;display:flex;flex-direction:column;gap:.375rem;min-height:9.5rem;position:relative;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
+.fc.t-blue{background:linear-gradient(135deg,var(--blue-bg),var(--app))}.fc.t-gray{background:linear-gradient(135deg,var(--gray-bg),var(--app))}.fc.t-teal{background:linear-gradient(135deg,var(--teal-bg),var(--app))}
+.fc .k{font-size:.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;opacity:.85}
+.fc b{font-size:1rem;color:var(--fg)}
+.fc p{margin:0;color:var(--fg-2);font-size:.8125rem;line-height:1.5;max-width:17rem}
+.fc .big{position:absolute;right:-.75rem;bottom:-1rem;width:6.5rem;height:6.5rem;opacity:.18;stroke-width:1.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(16.5rem,1fr));gap:.75rem}
+.pc{background:var(--app);border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);padding:.875rem;display:flex;flex-direction:column;gap:.5rem;min-width:0}
+.pc:hover{box-shadow:inset 0 0 0 1px var(--line-2),var(--sh-card)}
+.pc.dim{opacity:.85}
+.pc-h{display:flex;gap:.625rem;align-items:flex-start;min-width:0}
+.pt{width:2.5rem;height:2.5rem;border-radius:.625rem;display:grid;place-items:center;flex:none}
+.pt svg.i{width:1.25rem;height:1.25rem}
+.pc-n{font-weight:600;font-size:.875rem;border:0;background:none;padding:0;text-align:left;cursor:pointer;color:var(--fg)}
+.pc-n:hover{text-decoration:underline}
+.pc-p{font-size:.75rem;color:var(--fg-2);display:flex;gap:.25rem;align-items:center;flex-wrap:wrap}
+.pc-d{font-size:.8125rem;color:var(--fg-2);line-height:1.5;flex:1;margin:0}
+.pc-f{display:flex;align-items:center;gap:.375rem;flex-wrap:wrap}
+.pc-f .act{margin-left:auto}
+.pc-m{font-size:.6875rem;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.vf{color:var(--accent)}
+.empty{grid-column:1/-1;padding:2.5rem 1rem;text-align:center;color:var(--fg-2)}
+.btn.inst{background:var(--sunk);color:var(--fg-2);cursor:default}
+.btn.blk{background:var(--red-bg);color:var(--red-fg);cursor:default}
+.btn.req{background:var(--green-bg);color:var(--green-fg);cursor:default}
+textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:.5rem;background:var(--sunk);box-shadow:inset 0 0 0 1px var(--line);color:var(--fg);font:inherit;font-size:.8125rem;padding:.5rem .625rem}
+
+/* details */
+.dt{flex:1;overflow:auto;min-height:0}
+.back{display:inline-flex;align-items:center;gap:.25rem;color:var(--fg-2);font-size:.8125rem;padding:1rem 2rem 0}
+.dt-hd{display:flex;gap:1rem;align-items:flex-start;padding:.75rem 2rem 1rem;flex-wrap:wrap}
+.dt-hd .pt{width:4rem;height:4rem;border-radius:1rem}.dt-hd .pt svg.i{width:2rem;height:2rem}
+.dt-t{flex:1;min-width:14rem}
+.dt-t h2{margin:0 0 .125rem;font-size:1.5rem;font-weight:600;letter-spacing:-.015em}
+.dt-t p{margin:.25rem 0 .5rem;color:var(--fg-2)}
+.dt-a{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.tabs{display:flex;gap:.125rem;padding:0 1.5rem;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{display:inline-flex;gap:.375rem;align-items:center;height:2.25rem;padding:0 .6rem;border:0;background:none;color:var(--fg-2);font-size:.8125rem;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--fg);font-weight:500}
+.dt-b{display:grid;grid-template-columns:minmax(0,1fr) 19rem;gap:1.75rem;padding:1.25rem 2rem 2rem}
+.dt-b h3{margin:0 0 .5rem;font-size:.9375rem;font-weight:600}
+.dt-b h3+.hint{margin:-.25rem 0 .5rem}
+.shots{display:grid;grid-template-columns:1.6fr 1fr;gap:.625rem;margin:0 0 1.25rem}
+.shot{border-radius:.625rem;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);padding:.625rem;height:9.5rem;overflow:hidden;display:flex;flex-direction:column;gap:.375rem}
+.shot .bar{height:.5rem;border-radius:.25rem;background:var(--line-2)}
+.shot .ln{display:flex;gap:.375rem;align-items:center;font-size:.6875rem;color:var(--fg-2)}
+.shot .cd{flex:1;border-radius:.375rem;background:var(--app);box-shadow:0 0 0 1px var(--line);padding:.375rem;font-size:.6875rem;line-height:1.35}
+.perm{display:flex;gap:.75rem;padding:.625rem 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.perm:last-child{border-bottom:0}
+.perm .pi{width:2rem;height:2rem;border-radius:.5rem;background:var(--sunk);display:grid;place-items:center;flex:none;color:var(--fg-2)}
+.perm b{font-weight:500;display:block}
+.perm span{color:var(--fg-2);font-size:.8125rem;line-height:1.5}
+.perm.add{background:color-mix(in srgb,var(--green-bg) 55%,transparent);border-radius:.5rem;padding:.625rem .5rem;border-bottom:0;margin:.25rem 0}
+.perm.add .pi{background:var(--green-bg);color:var(--green-fg)}
+.card{background:var(--panel);border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);padding:.875rem;margin-bottom:.75rem}
+.card h4{margin:0 0 .5rem;font-size:.75rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.kv{display:grid;grid-template-columns:6.5rem minmax(0,1fr);gap:.375rem .75rem;font-size:.8125rem;margin:0}
+.kv dt{color:var(--fg-2)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.kv a,.lk{color:var(--accent);text-decoration:none}
+.pubrow{display:flex;gap:.625rem;align-items:center;margin-bottom:.625rem}
+.pubrow .pt{width:2.25rem;height:2.25rem;border-radius:50%}
+.banner{display:flex;gap:.625rem;align-items:flex-start;padding:.75rem .875rem;border-radius:.75rem;font-size:.8125rem;line-height:1.5}
+.banner b{display:block;font-weight:600}
+.banner>div{flex:1;min-width:0}.banner span.t{display:block}
+.sw[disabled]{opacity:.55;cursor:not-allowed}
+.banner .btn{margin-top:.375rem}
+.banner.red{background:var(--red-bg);color:var(--red-fg)}.banner.amber{background:var(--amber-bg);color:var(--amber-fg)}.banner.blue{background:var(--blue-bg);color:var(--blue-fg)}.banner.green{background:var(--green-bg);color:var(--green-fg)}.banner.gray{background:var(--sunk);color:var(--fg-2)}
+.banner span.t{color:var(--fg)}
+.sig{display:flex;gap:.75rem;align-items:flex-start;padding:.75rem 0;border-bottom:1px solid var(--line)}
+.sig:last-child{border-bottom:0}
+.sig .ok{color:var(--green-fg)}
+.mono{font-family:var(--mono);font-size:.75rem;color:var(--fg-2);overflow-wrap:anywhere}
+.lim{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin:.5rem 0 1rem}
+.lim div{background:var(--sunk);border-radius:.5rem;padding:.5rem .625rem}
+.lim b{display:block;font-size:1rem;font-variant-numeric:tabular-nums}
+.lim span{font-size:.6875rem;color:var(--fg-2)}
+
+/* manager, policy, requests */
+.tbl{width:100%;border-collapse:collapse;font-size:.8125rem}
+.tbl th{font-size:.6875rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:.5rem .625rem;border-bottom:1px solid var(--line)}
+.tbl td{padding:.625rem;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tr.rv td{background:color-mix(in srgb,var(--red-bg) 45%,transparent)}
+.nm{display:flex;gap:.625rem;align-items:center;min-width:0}
+.nm .pt{width:2rem;height:2rem;border-radius:.5rem}.nm .pt svg.i{width:1rem;height:1rem}
+.nm b{font-weight:500;display:block}.nm small{color:var(--fg-2);font-size:.75rem}
+.ver{font-family:var(--mono);font-size:.75rem}
+.pol{max-width:46rem}
+.pol section{padding:1rem 0;border-bottom:1px solid var(--line)}
+.pol section:last-child{border-bottom:0}
+.pol h3{margin:0 0 .25rem;font-size:.9375rem;font-weight:600;display:flex;gap:.5rem;align-items:center}
+.pol h3+.hint{margin:0 0 .625rem}
+.opts{display:grid;gap:.5rem}
+.opt{display:flex;gap:.625rem;padding:.625rem .75rem;border-radius:.625rem;box-shadow:inset 0 0 0 1px var(--line);align-items:flex-start;cursor:pointer}
+.opt.on{box-shadow:inset 0 0 0 1.5px var(--accent);background:var(--accent-soft)}
+.opt b{font-weight:500;display:block}.opt span{color:var(--fg-2);font-size:.75rem}
+.rdo{width:1rem;height:1rem;border-radius:50%;box-shadow:inset 0 0 0 1.5px var(--line-2);flex:none;margin-top:.125rem;background:var(--app)}
+.opt.on .rdo{box-shadow:inset 0 0 0 .3rem var(--accent)}
+.trow{display:flex;gap:.75rem;align-items:center;padding:.5rem 0}
+.trow .tx{flex:1;min-width:0}.trow .tx b{font-weight:500;display:block}.trow .tx span{color:var(--fg-2);font-size:.75rem}
+.lockt{display:inline-flex;gap:.25rem;align-items:center;font-size:.75rem;color:var(--fg-2);white-space:nowrap}
+.chips{display:flex;gap:.375rem;flex-wrap:wrap}
+.chp{display:inline-flex;align-items:center;gap:.3rem;height:1.625rem;padding:0 .5rem;border-radius:.4rem;background:var(--sunk);font-family:var(--mono);font-size:.75rem;box-shadow:inset 0 0 0 1px var(--line)}
+.rq{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:.75rem;padding:.875rem;border-radius:.75rem;box-shadow:inset 0 0 0 1px var(--line);margin-bottom:.625rem;align-items:start;background:var(--app)}
+.rq .why{margin:.375rem 0 0;padding:.5rem .625rem;border-radius:.5rem;background:var(--sunk);color:var(--fg);font-size:.8125rem;line-height:1.5}
+.rq .acts{display:flex;gap:.375rem;flex-wrap:wrap;justify-content:flex-end}
+.rq .note2{margin-top:.5rem;display:flex;gap:.375rem;align-items:flex-start;color:var(--amber-fg);font-size:.75rem;line-height:1.5}
+.diff{font-family:var(--mono);font-size:.75rem;background:var(--sunk);border-radius:.5rem;padding:.5rem .625rem;line-height:1.7;margin:.5rem 0}
+.diff .a{color:var(--green-fg)}.diff .u{color:var(--fg-2)}
+
+/* small state frames */
+.st{padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:.875rem;height:100%;overflow:auto}
+.st .dt-hd{padding:0}
+.st .dt-hd .pt{width:3rem;height:3rem;border-radius:.75rem}.st .dt-hd .pt svg.i{width:1.5rem;height:1.5rem}
+.st .dt-t h2{font-size:1.125rem}
+
+/* add-view menu */
+.mnu{width:17rem}
+.mnu .mi .pt{width:1.5rem;height:1.5rem;border-radius:.375rem}.mnu .mi .pt svg.i{width:.875rem;height:.875rem}
+.newb{font-size:.625rem;font-weight:600;padding:.05rem .3rem;border-radius:.25rem;background:var(--accent-soft);color:var(--accent);letter-spacing:.03em;margin-left:auto}
+
+/* phone */
+.ph .mk-main{padding:.5rem 1rem 1rem}
+.ph-srch{margin:0 1rem .5rem}
+.ph-cats{display:flex;gap:.375rem;overflow-x:auto;padding:0 1rem .625rem;scrollbar-width:none;flex:none}
+.ph-cats button{flex:none;height:2rem;padding:0 .75rem;border-radius:999px;border:0;background:var(--sunk);font-size:.8125rem;color:var(--fg-2);cursor:pointer}
+.ph-cats button[aria-pressed="true"]{background:var(--fg);color:var(--app)}
+.ph .pc{box-shadow:none;border-radius:0;border-bottom:1px solid var(--line);padding:.875rem 1rem}
+.ph .pc .btn{height:2.25rem}
+.ph .dt-hd{padding:.5rem 1rem .75rem}
+.ph .dt-b{display:block;padding:1rem}
+.ph .bigbtn{height:2.75rem;justify-content:center;width:100%;font-size:.875rem}
+
+</style></head><body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8M16 13H8M16 17H8"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-unlink" viewBox="0 0 24 24"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><path d="M8 2v3M2 8h3M16 22v-3M22 16h-3"/></symbol>
+<symbol id="i-arrow-ur" viewBox="0 0 24 24"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></symbol>
+<symbol id="i-ext" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+<symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></symbol>
+<symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-circle-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M20 7h-9M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></symbol>
+<symbol id="i-graph" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/></symbol>
+<symbol id="i-network" viewBox="0 0 24 24"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8"/></symbol>
+<symbol id="i-puzzle" viewBox="0 0 24 24"><path d="M15.39 4.39a1 1 0 0 0 1.68-.47 2.5 2.5 0 1 1 3.01 3.01 1 1 0 0 0-.47 1.68l1.68 1.68a2.41 2.41 0 0 1 0 3.42l-1.68 1.68a1 1 0 0 1-1.68-.47 2.5 2.5 0 1 0-3.01 3.01 1 1 0 0 1 .47 1.68l-1.68 1.68a2.41 2.41 0 0 1-3.42 0l-1.68-1.68a1 1 0 0 0-1.68.47 2.5 2.5 0 1 1-3.01-3.01 1 1 0 0 0 .47-1.68l-1.68-1.68a2.41 2.41 0 0 1 0-3.42l1.68-1.68a1 1 0 0 1 1.68.47 2.5 2.5 0 1 0 3.01-3.01 1 1 0 0 1-.47-1.68l1.68-1.68a2.41 2.41 0 0 1 3.42 0z"/></symbol>
+<symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4M12 16h.01"/></symbol>
+<symbol id="i-badge-check" viewBox="0 0 24 24"><path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></symbol>
+<symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-building" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M11.53 2.3a.53.53 0 0 1 .95 0l2.31 4.68a2.12 2.12 0 0 0 1.6 1.16l5.16.76a.53.53 0 0 1 .3.9l-3.74 3.64a2.12 2.12 0 0 0-.61 1.88l.88 5.14a.53.53 0 0 1-.77.56l-4.62-2.43a2.12 2.12 0 0 0-1.97 0L6.4 21.01a.53.53 0 0 1-.77-.56l.88-5.14a2.12 2.12 0 0 0-.61-1.88L2.16 9.8a.53.53 0 0 1 .3-.9l5.16-.76a2.12 2.12 0 0 0 1.6-1.16z"/></symbol>
+<symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12M3.29 7 12 12l8.71-5M7.5 4.27l9 5.15"/></symbol>
+<symbol id="i-command" viewBox="0 0 24 24"><path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="m6 3 14 9-14 9z"/></symbol>
+<symbol id="i-table" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-gantt" viewBox="0 0 24 24"><path d="M8 6h10M6 12h9M11 18h7"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M3 12h.01M3 18h.01M3 6h.01M8 12h13M8 18h13M8 6h13"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/></symbol>
+<symbol id="i-maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+<symbol id="i-heading" viewBox="0 0 24 24"><path d="M6 12h12M6 20V4M18 20V4"/></symbol>
+<symbol id="i-text" viewBox="0 0 24 24"><path d="M17 6.1H3M21 12.1H3M15.1 18H3"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/></symbol>
+<symbol id="i-file-up" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 12v6M15 15l-3-3-3 3"/></symbol>
+<symbol id="i-file-down" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M12 18v-6M9 15l3 3 3-3"/></symbol>
+<symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4M21 2l-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+<symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0L14.06 8.5A2 2 0 0 0 15.5 9.94l6.14 1.58a.5.5 0 0 1 0 .96L15.5 14.06a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></symbol>
+<symbol id="i-git" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-map" viewBox="0 0 24 24"><path d="M14.11 5.11a1 1 0 0 0 .89 0l3.55-1.78A1 1 0 0 1 20 4.22v12.16a1 1 0 0 1-.55.9l-4 2a1 1 0 0 1-.9 0l-5.1-2.56a1 1 0 0 0-.9 0l-3.55 1.78A1 1 0 0 1 4 17.6V5.44a1 1 0 0 1 .55-.9l4-2a1 1 0 0 1 .9 0zM15 5.76v15M9 3.24v15"/></symbol>
+<symbol id="i-layout" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></symbol>
+<symbol id="i-rows" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M21 9H3M21 15H3"/></symbol>
+<symbol id="i-timer" viewBox="0 0 24 24"><path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/></symbol>
+<symbol id="i-languages" viewBox="0 0 24 24"><path d="m5 8 6 6M4 14l6-6 2-3M2 5h12M7 2h1M22 22l-5-10-5 10M14 18h6"/></symbol>
+</defs></svg>
+
+<header class="rv-top"><div class="rv-top-in"><div class="rv-title"><svg class="i" aria-hidden="true"><use href="#i-puzzle"/></svg>Plugin marketplace and manager <small>v0.5 · docs/38 §4 · draft for approval</small></div><div class="rv-ctl"><div class="rv-seg" role="group" aria-label="Theme"><button data-theme-btn="light"><svg class="i sm" aria-hidden="true"><use href="#i-sun"/></svg>Light</button><button data-theme-btn="dark"><svg class="i sm" aria-hidden="true"><use href="#i-moon"/></svg>Dark</button></div><div class="rv-seg" role="group" aria-label="Frame size"><button data-fit="1">Fit to width</button><button data-fit="0">Actual size</button></div></div></div>
+<nav class="rv-toc" aria-label="Frames"><a href="#f1">1 Browse</a><a href="#f2">2 Details</a><a href="#f3">3 Install and manage</a><a href="#f4">4 Policy and requests</a><a href="#f5">5 Blocked states</a><a href="#f6">6 Phone</a><a href="#f7">7 Keyboard</a></nav></header>
+
+<main class="rv-wrap">
+ <div class="rv-intro">
+  <div class="dec"><b style="color:var(--rv-fg)">Decisions for the owner</b><ol><li>Install mode by default: <em>people request, admins approve</em> (4a). The other two modes stay available to the admin.</li><li>Signatures are required, with no per-person or per-admin override. Only the operator can allow unsigned packages, and only from a named private registry, never from the OpenCanvas Marketplace (5a).</li><li>Updates install on their own for patch and minor versions only when the permissions are unchanged; a new major version or any new permission waits for an admin (3d).</li><li>A marketplace revocation switches the plugin off on every server within one hour (hourly index check); canvases keep their saved copies (5c).</li><li>No ratings or reviews in v0.5: install counts, publisher verification and the update date only.</li><li>Plugins that run on the server are off until the operator turns on <code>[plugins] server_code</code>; admins see why (5d).</li><li>Installing is per organisation (host). No per-person or per-canvas install in v0.5.</li><li>Paid plugins and publisher payouts are out of scope for v0.5.</li><li>Blocked plugins stay visible in Browse with the reason, rather than being hidden (1a, 5).</li></ol></div>
+  <h1>Plugin marketplace and manager</h1>
+  <p>The marketplace and plugin manager, inside OpenCanvas. People browse plugins from the OpenCanvas Marketplace and their organisation's own registry, see exactly what each plugin will be able to do and who published it, and request or install it. The organisation admin sets the policy; the operator who runs the server sets the outer limits. Frames 1a, 1b, 4a and 6a are live: pick a category, search, use the filters, and press Install or Request.</p>
+ </div>
+
+ <section class="rv-sec" id="f1">
+  <h2>1 · Browse <code>MKT-02 · ADR-083</code></h2>
+  <p>The marketplace opens inside OpenCanvas from the host's settings or the "Get plugins" link in the Add view, Import, Export and Automations menus. It lists the registries the operator connected (here the OpenCanvas Marketplace and Acme's internal registry). Every card says who published it, whether the publisher is verified, and whether any part runs on the server.</p>
+  <figure class="fr" id="1a"><figcaption><b>1a</b>Browse as the organisation admin (live: categories, search, filters, Install)<span class="dim">1280 × 800</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Settings</span><span class="sep">/</span><span class="ctile t-purple"><svg class="i sm"><use href="#i-puzzle"/></svg></span><span class="cname">Plugins</span></div><span class="sp"></span><span class="pill p-blue"><svg class="i sm"><use href="#i-shield-check"/></svg>Organisation admin</span><span class="av" style="background:var(--u3)" title="Noor Haddad">NH</span></div>
+     <div class="mk" data-mk="admin"></div>
+    </div>
+   </div></div>
+   <p class="note"><em>Install</em> asks for consent with the plugin's permissions (frame 3a), then turns it on for everyone in Acme Docs. <em>Not signed</em> and <em>Blocked</em> cards stay visible so people learn why, but cannot be installed (frame 5). The counts in the side list follow the filters. There are no star ratings or reviews in v0.5: install counts, publisher verification and the last update date only.</p>
+  </figure>
+  <figure class="fr" id="1b"><figcaption><b>1b</b>Browse as a person (Request instead of Install)<span class="dim">1280 × 800</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="ctile t-purple"><svg class="i sm"><use href="#i-puzzle"/></svg></span><span class="cname">Plugins</span></div><span class="sp"></span><span class="av" style="background:var(--u1)" title="Lea Fischer">LF</span></div>
+     <div class="mk" data-mk="person"></div>
+    </div>
+   </div></div>
+   <p class="note">With the default policy (people request, admins approve) a person sees <em>Request</em>. The request asks for a reason and goes to the organisation's admins (frame 4b); the card then says <em>Requested</em>. With "Only admins" the button is hidden and the card says "Ask your admin"; with "Anyone, from the allowed list" allowed plugins show <em>Install</em>.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f2">
+  <h2>2 · Plugin details <code>MKT-02 · ADR-083 · ADR-084</code></h2>
+  <p>One page per plugin: what it adds and where it shows up, its permissions in plain words, the publisher, and on the Security tab the signatures, the sandbox and what is inside the package.</p>
+  <figure class="fr" id="2a"><figcaption><b>2a</b>Overview, permissions and publisher<span class="dim">1280 × 800</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Plugins</span><span class="sep">/</span><span class="cname">GitHub issues</span></div><span class="sp"></span><span class="pill p-blue"><svg class="i sm"><use href="#i-shield-check"/></svg>Organisation admin</span><span class="av" style="background:var(--u3)">NH</span></div>
+     <div class="dt">
+      <div class="back"><svg class="i sm"><use href="#i-left"/></svg>Integrations</div>
+      <div class="dt-hd">
+       <span class="pt t-gray"><svg class="i"><use href="#i-git"/></svg></span>
+       <div class="dt-t"><h2>GitHub issues</h2>
+        <div class="pc-p">Kestrel Dev <svg class="i sm vf"><use href="#i-badge-check"/></svg><span>Verified publisher</span><span>·</span><span>9,700 installs</span><span>·</span><span>Version 3.1.0, updated Nov 22</span></div>
+        <p>Sign in with GitHub once, then see a preview card for any issue or pull request link, and create or comment on issues from automation rules.</p>
+        <div class="dt-a"><span class="pill p-amber"><svg class="i sm"><use href="#i-cpu"/></svg>Runs on the server</span><span class="pill p-gray"><svg class="i sm"><use href="#i-globe"/></svg>Connects to api.github.com</span><span class="pill p-green"><svg class="i sm"><use href="#i-shield-check"/></svg>Signed and reviewed</span></div>
+       </div>
+       <div class="dt-a"><button class="btn sec"><svg class="i"><use href="#i-ext"/></svg>Source</button><button class="btn pri"><svg class="i"><use href="#i-download"/></svg>Install for Acme Docs</button></div>
+      </div>
+      <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">Overview</button><button class="tab" role="tab" aria-selected="false">Permissions</button><button class="tab" role="tab" aria-selected="false">Security</button><button class="tab" role="tab" aria-selected="false">Versions</button></div>
+      <div class="dt-b">
+       <div>
+        <div class="shots">
+         <div class="shot"><div class="ln"><svg class="i sm"><use href="#i-link"/></svg>Preview card in a canvas</div><div class="cd"><b>#4182 Export times out above 50,000 rows</b><br><span class="pill p-green" style="margin:.25rem 0">Open</span> acme/billing · opened by Marco Bianchi<br><span style="color:var(--fg-3)">3 comments · updated 2 hours ago</span></div></div>
+         <div class="shot"><div class="ln"><svg class="i sm"><use href="#i-zap"/></svg>Automation action</div><div class="cd"><b>Then</b> Create GitHub issue<br>in <span class="mono">acme/billing</span><br>Title: <span class="pill p-blue">Task</span></div></div>
+        </div>
+        <h3>What it adds</h3>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-link"/></svg></span><div><b>Link previews</b><span>Issue and pull request links on github.com show a card with the title, state and assignee.</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-zap"/></svg></span><div><b>Two automation actions</b><span>"Create GitHub issue" and "Comment on issue", under Then in the rule editor.</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-key"/></svg></span><div><b>A connection</b><span>Each person connects their own GitHub account in Settings, Connections.</span></div></div>
+        <h3 style="margin-top:1.25rem">It will be able to</h3>
+        <p class="hint">Plugins only ever see what the person using them can see in Acme Docs.</p>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-key"/></svg></span><div><b>Keep a GitHub sign-in for each person who connects</b><span>Stored encrypted on the OpenCanvas server; disconnect any time.</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-globe"/></svg></span><div><b>Connect to api.github.com</b><span>Already on your organisation's allowed list. No other address.</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-eye"/></svg></span><div><b>Read the fields an automation rule passes to it</b><span>Only the fields named in the rule, when the rule runs, as the rule's owner.</span></div></div>
+       </div>
+       <aside>
+        <div class="card"><h4>Publisher</h4>
+         <div class="pubrow"><span class="pt t-teal"><svg class="i"><use href="#i-building"/></svg></span><div><b>Kestrel Dev</b><div class="pc-p"><svg class="i sm vf"><use href="#i-badge-check"/></svg>Verified · kestrel.example</div></div></div>
+         <dl class="kv"><dt>Verified</dt><dd>Domain and organisation, Mar 2026</dd><dt>Plugins</dt><dd>4 in the marketplace</dd><dt>Support</dt><dd><a href="#2a">support@kestrel.example</a></dd><dt>Source</dt><dd><a href="#2a">git.kestrel.example/oc-github</a></dd></dl>
+        </div>
+        <div class="card"><h4>Package</h4>
+         <dl class="kv"><dt>ID</dt><dd class="mono">kestrel.github-issues</dd><dt>Version</dt><dd>3.1.0</dd><dt>Works with</dt><dd>OpenCanvas 0.5 and 0.6</dd><dt>Size</dt><dd>412 KB (browser 96 KB, server 316 KB)</dd><dt>Licence</dt><dd>Apache-2.0</dd><dt>Registry</dt><dd>OpenCanvas Marketplace</dd></dl>
+        </div>
+       </aside>
+      </div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note">Permissions are written as what the plugin will be able to do, grouped with what it adds. <em>Runs on the server</em> means a WebAssembly part runs in the OpenCanvas server's sandbox (frame 2b); browser parts run in sandboxed frames on the block origin like SDK blocks. Screenshots are the publisher's, limited to 4 images in the package.</p>
+  </figure>
+  <figure class="fr" id="2b"><figcaption><b>2b</b>Security tab: signatures, sandbox, contents<span class="dim">1280 × 800</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Plugins</span><span class="sep">/</span><span class="cname">GitHub issues</span></div><span class="sp"></span><span class="av" style="background:var(--u3)">NH</span></div>
+     <div class="dt">
+      <div class="dt-hd" style="padding-top:1.25rem">
+       <span class="pt t-gray"><svg class="i"><use href="#i-git"/></svg></span>
+       <div class="dt-t"><h2>GitHub issues</h2><div class="pc-p">Kestrel Dev <svg class="i sm vf"><use href="#i-badge-check"/></svg><span>Verified publisher</span><span>·</span><span>3.1.0</span></div></div>
+       <div class="dt-a"><button class="btn pri"><svg class="i"><use href="#i-download"/></svg>Install for Acme Docs</button></div>
+      </div>
+      <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="false">Overview</button><button class="tab" role="tab" aria-selected="false">Permissions</button><button class="tab" role="tab" aria-selected="true">Security</button><button class="tab" role="tab" aria-selected="false">Versions</button></div>
+      <div class="dt-b">
+       <div>
+        <h3>Signatures</h3>
+        <div class="sig"><svg class="i lg ok"><use href="#i-circle-check"/></svg><div style="flex:1;min-width:0"><b>Signed by Kestrel Dev</b><div class="hint">Ed25519 key registered with the marketplace on Mar 4, 2026</div><div class="mono">key 7f3a 91c2 0be4 5d10 · package sha256 c41e…9a07</div></div></div>
+        <div class="sig"><svg class="i lg ok"><use href="#i-circle-check"/></svg><div style="flex:1;min-width:0"><b>Countersigned by the OpenCanvas Marketplace</b><div class="hint">Reviewed Nov 22: automated scan, permission review, and a manual review because it runs on the server and uses the network.</div><div class="mono">index v2,184 · signed Nov 28 09:12 UTC · expires Dec 5</div></div></div>
+        <div class="sig"><svg class="i lg ok"><use href="#i-circle-check"/></svg><div style="flex:1;min-width:0"><b>Not revoked</b><div class="hint">Your server checks the signed index every hour. A revoked plugin is switched off within an hour.</div></div></div>
+        <h3 style="margin-top:1.25rem">Server sandbox</h3>
+        <p class="hint">The server part is a WebAssembly component. It has no files, no clock beyond the time of day, and no network except the addresses below, through the server.</p>
+        <div class="lim"><div><b>10 s</b><span>time per call</span></div><div><b>256 MB</b><span>memory</span></div><div><b>1</b><span>network address</span></div></div>
+        <h3>Inside the package</h3>
+        <dl class="kv" style="grid-template-columns:9rem minmax(0,1fr)"><dt>Manifest</dt><dd class="mono">plugin.json · engines opencanvas &gt;=0.5 &lt;0.7</dd><dt>Browser</dt><dd class="mono">ui/preview.js (96 KB)</dd><dt>Server</dt><dd class="mono">server/github.wasm (316 KB)</dd><dt>Bill of materials</dt><dd><a class="lk" href="#2b">sbom.cdx.json</a>, 38 components, all on the allowed licence list</dd><dt>Licence</dt><dd>Apache-2.0</dd></dl>
+       </div>
+       <aside>
+        <div class="banner blue"><svg class="i"><use href="#i-info"/></svg><div><span class="t"><b>Your policy allows this plugin</b>Signed, from the OpenCanvas Marketplace, runs on the server (allowed by your operator), connects only to api.github.com (on your allowed list).</span></div></div>
+        <div class="card" style="margin-top:.75rem"><h4>Versions</h4>
+         <dl class="kv"><dt>3.1.0</dt><dd>Nov 22 · comment action</dd><dt>3.0.2</dt><dd>Oct 30 · fixes</dd><dt>3.0.0</dt><dd>Oct 6 · needs OpenCanvas 0.5</dd></dl>
+        </div>
+       </aside>
+      </div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note">Two signatures: the publisher's key proves who built it; the marketplace's countersignature proves it was reviewed and is in the current signed index. The index carries a version number and an expiry date, so a server refuses an older index (rollback) or a stale one (freeze). The same page shows a private registry's signer, for example "Acme internal".</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f3">
+  <h2>3 · Install, manage and update <code>MKT-03 · MKT-04</code></h2>
+  <p>Installing is per organisation: one admin turns a plugin on for everyone in Acme Docs. Admins see every installed plugin, its version and its state in one place.</p>
+  <div class="rv-row">
+   <figure class="fr" id="3a"><figcaption><b>3a</b>Consent before install<span class="dim">720 × 600</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="720" style="width:45rem;height:37.5rem">
+     <div class="oc"><div class="mask" style="position:absolute">
+      <div class="dlg" role="dialog" aria-label="Install GitHub issues">
+       <div class="dlg-h"><span class="pt t-gray"><svg class="i"><use href="#i-git"/></svg></span><div style="flex:1"><h3>Install GitHub issues for Acme Docs?</h3><p>Kestrel Dev · verified · 3.1.0</p></div><button class="btn ic" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+       <div class="dlg-b">
+        <div class="hint" style="margin-bottom:.25rem">Everyone in Acme Docs will be able to use it. It will be able to:</div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-key"/></svg></span><div><b>Keep a GitHub sign-in for each person who connects</b><span>Encrypted on the OpenCanvas server</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-globe"/></svg></span><div><b>Connect to api.github.com</b><span>On your allowed list</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-eye"/></svg></span><div><b>Read the fields an automation rule passes to it</b><span>As the rule's owner, when the rule runs</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-cpu"/></svg></span><div><b>Run on the OpenCanvas server</b><span>In the sandbox: 2 s, 64 MB per call</span></div></div>
+        <label class="chk" style="margin-top:.5rem"><input type="checkbox" checked>Update automatically when permissions do not change</label>
+       </div>
+       <div class="dlg-f"><button class="btn">Cancel</button><button class="btn pri">Install</button></div>
+      </div>
+     </div></div>
+    </div></div>
+    <p class="note">The same list as the details page, never shorter. A plugin that asks for more than the organisation's permission ceiling cannot be installed (frame 4a).</p>
+   </figure>
+   <figure class="fr" id="3b"><figcaption><b>3b</b>Installed: where to find it<span class="dim">720 × 600</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="720" style="width:45rem;height:37.5rem">
+     <div class="oc">
+      <div class="oct"><div class="crumbs"><span class="par">Engineering</span><span class="sep">/</span><span class="ctile"><svg class="i sm"><use href="#i-file"/></svg></span><span class="cname">Q1 planning</span></div><span class="sp"></span><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span></div>
+      <div style="padding:1.5rem 1.75rem;position:relative;flex:1">
+       <div style="font-weight:600;font-size:1.0625rem;margin-bottom:.5rem">Product backlog</div>
+       <div class="tabs" style="padding:0"><button class="tab" aria-selected="true"><svg class="i"><use href="#i-table"/></svg>All items</button><button class="tab" aria-selected="false"><svg class="i"><use href="#i-board"/></svg>By status</button><button class="tab" aria-selected="false" style="color:var(--accent)"><svg class="i"><use href="#i-plus"/></svg>Add view</button></div>
+       <div class="pop mnu" style="left:11rem;top:5.25rem">
+        <h4>Views</h4>
+        <div class="mi"><svg class="i"><use href="#i-table"/></svg>Table</div>
+        <div class="mi"><svg class="i"><use href="#i-board"/></svg>Board</div>
+        <div class="mi"><svg class="i"><use href="#i-cal"/></svg>Calendar</div>
+        <div class="mi"><svg class="i"><use href="#i-gantt"/></svg>Timeline</div>
+        <div class="sepl"></div>
+        <h4>From plugins</h4>
+        <div class="mi on"><span class="pt t-purple"><svg class="i"><use href="#i-map"/></svg></span>Roadmap view<span class="newb">NEW</span></div>
+        <div class="mi"><span class="pt t-blue"><svg class="i"><use href="#i-rows"/></svg></span>Swimlanes</div>
+        <div class="sepl"></div>
+        <div class="mi" style="color:var(--fg-2)"><svg class="i"><use href="#i-puzzle"/></svg>Get more views</div>
+       </div>
+       <div class="toast" role="status"><svg class="i" style="color:var(--green-fg)"><use href="#i-circle-check"/></svg>Roadmap view is on for Acme Docs. Find it in Add view on any database.<button class="btn">Undo</button></div>
+      </div>
+     </div>
+    </div></div>
+    <p class="note">The toast names the place the plugin appears: Add view (views), Import and Export, the rule editor (actions), the command menu (commands), the / menu (blocks). Plugin entries sit under <em>From plugins</em> with their tile, so they are never mistaken for built-in features.</p>
+   </figure>
+  </div>
+  <figure class="fr" id="3c"><figcaption><b>3c</b>Installed plugins<span class="dim">1280 × 800</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Settings</span><span class="sep">/</span><span class="ctile t-purple"><svg class="i sm"><use href="#i-puzzle"/></svg></span><span class="cname">Plugins</span></div><span class="sp"></span><span class="av" style="background:var(--u3)">NH</span></div>
+     <div class="mk"><nav class="mk-nav" data-nav="installed"></nav>
+      <div class="mk-main">
+       <div class="mk-hd"><h2>Installed</h2><span class="pill p-gray">6</span><span class="sp"></span><span class="hint">Index v2,184 · checked 12 minutes ago</span><button class="btn sec"><svg class="i"><use href="#i-refresh"/></svg>Check now</button><button class="btn sec"><svg class="i"><use href="#i-upload"/></svg>Upload package</button></div>
+       <div class="banner amber" style="margin-bottom:1rem"><svg class="i"><use href="#i-alert"/></svg><div><span class="t"><b>3 updates</b>Pandoc exporter and Roadmap view update tonight on their own. Swimlanes 2.4.0 asks for a new permission and waits for you.</span><button class="btn pri" data-open-3d>Review Swimlanes 2.4.0</button></div></div>
+       <table class="tbl">
+        <thead><tr><th>Plugin</th><th>Adds</th><th>Version</th><th>Status</th><th>On</th><th></th></tr></thead>
+        <tbody>
+         <tr><td><div class="nm"><span class="pt t-blue"><svg class="i"><use href="#i-rows"/></svg></span><div><b>Swimlanes</b><small>Northbeam Labs · used in 14 canvases</small></div></div></td><td>Database view</td><td class="ver">2.3.1 <span class="pill p-amber">2.4.0 needs approval</span></td><td><span class="pill p-green">Active</span></td><td><button class="sw" role="switch" aria-checked="true" aria-label="Swimlanes on"></button></td><td><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></td></tr>
+         <tr><td><div class="nm"><span class="pt t-purple"><svg class="i"><use href="#i-map"/></svg></span><div><b>Roadmap view</b><small>OpenCanvas · used in 3 canvases</small></div></div></td><td>Database view</td><td class="ver">1.4.0 <span class="pill p-blue">1.4.1 tonight</span></td><td><span class="pill p-green">Active</span></td><td><button class="sw" role="switch" aria-checked="true" aria-label="Roadmap view on"></button></td><td><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></td></tr>
+         <tr><td><div class="nm"><span class="pt t-green"><svg class="i"><use href="#i-message"/></svg></span><div><b>Post to chat channel</b><small>Relay Works · in 6 rules</small></div></div></td><td>Automation action</td><td class="ver">1.2.0</td><td><span class="pill p-green">Active</span> <span class="pill p-amber"><svg class="i sm"><use href="#i-cpu"/></svg>Server</span></td><td><button class="sw" role="switch" aria-checked="true" aria-label="Post to chat channel on"></button></td><td><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></td></tr>
+         <tr><td><div class="nm"><span class="pt t-amber"><svg class="i"><use href="#i-file-down"/></svg></span><div><b>Pandoc exporter</b><small>Typeset Co</small></div></div></td><td>Exporter</td><td class="ver">2.0.3 <span class="pill p-blue">2.0.4 tonight</span></td><td><span class="pill p-green">Active</span> <span class="pill p-amber"><svg class="i sm"><use href="#i-cpu"/></svg>Server</span></td><td><button class="sw" role="switch" aria-checked="true" aria-label="Pandoc exporter on"></button></td><td><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></td></tr>
+         <tr><td><div class="nm"><span class="pt t-teal"><svg class="i"><use href="#i-file-up"/></svg></span><div><b>Confluence space importer</b><small>Fieldnote Software · pinned to 1.8.2</small></div></div></td><td>Importer</td><td class="ver">1.8.2 <svg class="i sm" style="color:var(--fg-3)"><use href="#i-pin"/></svg></td><td><span class="pill p-gray">Off</span></td><td><button class="sw" role="switch" aria-checked="false" aria-label="Confluence space importer off"></button></td><td><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></td></tr>
+         <tr class="rv"><td><div class="nm"><span class="pt t-gray"><svg class="i"><use href="#i-file-down"/></svg></span><div><b>Sticky export</b><small>Paperplane Tools</small></div></div></td><td>Exporter</td><td class="ver">1.0.6</td><td><span class="pill p-red"><svg class="i sm"><use href="#i-ban"/></svg>Revoked</span></td><td><button class="sw" role="switch" aria-checked="false" aria-label="Sticky export off" disabled></button></td><td><button class="btn sec">Remove</button></td></tr>
+        </tbody>
+       </table>
+       <div class="pop" style="right:1.75rem;top:17.5rem;width:15rem;position:absolute">
+        <div class="mi"><svg class="i"><use href="#i-eye"/></svg>Details and permissions</div>
+        <div class="mi"><svg class="i"><use href="#i-history"/></svg>Roll back to 2.3.0</div>
+        <div class="mi"><svg class="i"><use href="#i-pin"/></svg>Pin this version</div>
+        <div class="mi"><svg class="i"><use href="#i-list"/></svg>Where it is used</div>
+        <div class="sepl"></div>
+        <div class="mi" style="color:var(--red-fg)"><svg class="i"><use href="#i-trash"/></svg>Uninstall</div>
+       </div>
+      </div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note"><em>Off</em> keeps the plugin installed but hidden; canvases that use it show their saved copies, read only, exactly like a block whose package is missing. <em>Roll back</em> returns to the version before the last update (kept on the server). <em>Pinned</em> versions never update on their own. The menu shown is for Swimlanes.</p>
+  </figure>
+  <figure class="fr" id="3d"><figcaption><b>3d</b>An update that adds a permission<span class="dim">720 × 640</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="720" style="width:45rem;height:40rem">
+    <div class="oc"><div class="mask" style="position:absolute">
+     <div class="dlg" role="dialog" aria-label="Update Swimlanes">
+      <div class="dlg-h"><span class="pt t-blue"><svg class="i"><use href="#i-rows"/></svg></span><div style="flex:1"><h3>Update Swimlanes to 2.4.0?</h3><p>Northbeam Labs · verified · you have 2.3.1</p></div><button class="btn ic" aria-label="Close"><svg class="i"><use href="#i-x"/></svg></button></div>
+      <div class="dlg-b">
+       <div class="hint">This version asks for one new permission, so it waits for an admin.</div>
+       <div class="perm add"><span class="pi"><svg class="i"><use href="#i-plus"/></svg></span><div><b>New: connect to uploads.northbeam.example</b><span>"To attach images to cards." Not on your allowed list yet; approving adds it for this plugin only.</span></div></div>
+       <div class="perm"><span class="pi"><svg class="i"><use href="#i-eye"/></svg></span><div><b>See the rows shown in its view</b><span>Unchanged</span></div></div>
+       <div class="perm"><span class="pi"><svg class="i"><use href="#i-text"/></svg></span><div><b>Change cells in its view</b><span>Unchanged</span></div></div>
+       <div class="diff"><span class="u">permissions.network</span><br><span class="a">+ "https://uploads.northbeam.example"</span></div>
+       <div class="card" style="margin:0"><h4>What's new in 2.4.0</h4><div class="hint" style="color:var(--fg)">Image covers on cards. Collapse a lane with its header. Lanes keep their order when someone renames an option.</div></div>
+      </div>
+      <div class="dlg-f"><button class="btn"><svg class="i"><use href="#i-pin"/></svg>Stay on 2.3.1</button><button class="btn pri">Approve and update</button></div>
+     </div>
+    </div></div>
+   </div></div>
+   <p class="note">Updates that keep the same permissions install on their own (patch and minor versions, at night in the host's time zone). A new major version, or any new permission, waits here. Until then everyone keeps 2.3.1.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f4">
+  <h2>4 · Admin policy and requests <code>MKT-05 · ADR-083</code></h2>
+  <p>The organisation admin is whoever the host marks as plugin admin in the launch token (<code>perms.plugins: "admin"</code>). The operator who runs the server sets the outer limits: which registries exist, whether unsigned packages are possible at all, and whether anything may run on the server. The admin chooses within them.</p>
+  <figure class="fr" id="4a"><figcaption><b>4a</b>Policy<span class="dim">1280 × 1392</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:87rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Settings</span><span class="sep">/</span><span class="ctile t-purple"><svg class="i sm"><use href="#i-puzzle"/></svg></span><span class="cname">Plugins</span></div><span class="sp"></span><span class="ocst"><svg class="i sm"><use href="#i-circle-check"/></svg>Saved</span><span class="av" style="background:var(--u3)">NH</span></div>
+     <div class="mk"><nav class="mk-nav" data-nav="policy"></nav>
+      <div class="mk-main"><div class="pol">
+       <div class="mk-hd"><h2>Policy for Acme Docs</h2></div>
+       <section><h3>Who can install</h3><p class="hint">Plugins are on for the whole organisation once installed.</p>
+        <div class="opts" data-radio>
+         <div class="opt" role="radio" aria-checked="false" tabindex="-1"><span class="rdo"></span><div><b>Only admins</b><span>People don't see Install or Request; they can ask you directly.</span></div></div>
+         <div class="opt on" role="radio" aria-checked="true" tabindex="0"><span class="rdo"></span><div><b>People request, admins approve</b><span>Recommended. Requests arrive under Requests with a reason.</span></div></div>
+         <div class="opt" role="radio" aria-checked="false" tabindex="-1"><span class="rdo"></span><div><b>Anyone, from the allowed list</b><span>People install plugins you have allowed; others need a request.</span></div></div>
+        </div>
+       </section>
+       <section><h3>Sources</h3><p class="hint">Registries your operator connected to this server.</p>
+        <div class="trow"><svg class="i"><use href="#i-globe"/></svg><div class="tx"><b>OpenCanvas Marketplace</b><span>Signed and reviewed by the marketplace</span></div><button class="sw" role="switch" aria-checked="true" aria-label="OpenCanvas Marketplace"></button></div>
+        <div class="trow"><svg class="i"><use href="#i-building"/></svg><div class="tx"><b>Acme internal</b><span>Private registry, signed by Acme IT</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Acme internal"></button></div>
+        <div class="trow"><svg class="i"><use href="#i-upload"/></svg><div class="tx"><b>Uploaded packages</b><span>Signed .ocplugin files uploaded by an admin</span></div><button class="sw" role="switch" aria-checked="false" aria-label="Uploaded packages"></button></div>
+       </section>
+       <section><h3>Signatures <span class="lockt"><svg class="i sm"><use href="#i-lock"/></svg>Set by your operator</span></h3>
+        <div class="trow"><svg class="i"><use href="#i-shield-check"/></svg><div class="tx"><b>Only signed plugins</b><span>Unsigned packages are refused. Only the operator can allow them, and only from a private registry.</span></div><button class="sw" role="switch" aria-checked="true" disabled aria-label="Only signed plugins"></button></div>
+       </section>
+       <section><h3>Running on the server</h3>
+        <div class="trow"><svg class="i"><use href="#i-cpu"/></svg><div class="tx"><b>Allow plugins that run on the server</b><span>Importers, exporters, automation actions and integrations. Your operator allows this on this server.</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Allow server plugins"></button></div>
+       </section>
+       <section><h3>Network</h3><p class="hint">Plugins can connect only to these addresses, and only if they declare them.</p>
+        <div class="chips"><span class="chp">api.github.com<svg class="i sm"><use href="#i-x"/></svg></span><span class="chp">hooks.chat.acme.example<svg class="i sm"><use href="#i-x"/></svg></span><span class="chp">translate.acme.example<svg class="i sm"><use href="#i-x"/></svg></span><button class="btn sec"><svg class="i"><use href="#i-plus"/></svg>Add address</button></div>
+       </section>
+       <section><h3>Permission ceilings</h3><p class="hint">Plugins that ask for these cannot be installed, whatever their source.</p>
+        <div class="trow"><svg class="i"><use href="#i-users"/></svg><div class="tx"><b>See the people on a canvas</b><span>Names and avatars of members</span></div><span class="pill p-red">Never</span></div>
+        <div class="trow"><svg class="i"><use href="#i-key"/></svg><div class="tx"><b>Keep sign-ins to other services</b><span>OAuth connections per person</span></div><span class="pill p-amber">Ask me</span></div>
+        <div class="trow"><svg class="i"><use href="#i-file"/></svg><div class="tx"><b>Read other canvases</b><span>Not available to plugins in v0.5</span></div><span class="pill p-gray">Not offered</span></div>
+       </section>
+       <section><h3>Updates</h3>
+        <div class="trow"><svg class="i"><use href="#i-refresh"/></svg><div class="tx"><b>Install patch and minor updates on their own</b><span>Only when permissions do not change. Anything new waits for an admin.</span></div><button class="sw" role="switch" aria-checked="true" aria-label="Automatic updates"></button></div>
+       </section>
+      </div></div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note">Switches in this frame are live. <em>Locked</em> rows show who decides instead of hiding the setting. The operator side is configuration (<code>[plugins]</code> in the server's TOML: registries, <code>allow_unsigned</code> for a named private registry, <code>server_code</code>); see docs/38 §4.</p>
+  </figure>
+  <figure class="fr" id="4b"><figcaption><b>4b</b>Requests<span class="dim">1280 × 720</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:45rem">
+    <div class="oc">
+     <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Settings</span><span class="sep">/</span><span class="ctile t-purple"><svg class="i sm"><use href="#i-puzzle"/></svg></span><span class="cname">Plugins</span></div><span class="sp"></span><span class="av" style="background:var(--u3)">NH</span></div>
+     <div class="mk"><nav class="mk-nav" data-nav="requests"></nav>
+      <div class="mk-main" style="max-width:56rem">
+       <div class="mk-hd"><h2>Requests</h2><span class="pill p-blue">3 open</span></div>
+       <div class="rq"><span class="pt t-pink"><svg class="i"><use href="#i-languages"/></svg></span><div><b>Translate selection</b> <span class="hint">Lingo Bridge · verified</span><div class="pc-p" style="margin-top:.25rem"><span class="av s" style="background:var(--u1)">LF</span>Lea Fischer asked 2 hours ago</div><div class="why">For the Berlin partner notes: we write them in English and send German copies every week.</div><div class="note2"><svg class="i sm"><use href="#i-alert"/></svg>Needs api.lingobridge.example, which is not on your allowed list. Approving adds it for this plugin only.</div></div><div class="acts"><button class="btn sec">Decline</button><button class="btn pri">Approve and install</button></div></div>
+       <div class="rq"><span class="pt t-amber"><svg class="i"><use href="#i-file-down"/></svg></span><div><b>Pandoc exporter</b> <span class="hint">Typeset Co · verified · runs on the server</span><div class="pc-p" style="margin-top:.25rem"><span class="av s" style="background:var(--u2)">MB</span>Marco Bianchi asked yesterday</div><div class="why">Legal needs ODT copies of the contract templates.</div><div class="note2" style="color:var(--green-fg)"><svg class="i sm"><use href="#i-circle-check"/></svg>Already installed on Nov 26. Close the request to let Marco know.</div></div><div class="acts"><button class="btn pri">Close and notify</button></div></div>
+       <div class="rq"><span class="pt t-purple"><svg class="i"><use href="#i-file-up"/></svg></span><div><b>Obsidian vault importer</b> <span class="hint">Fieldnote Software · verified · runs on the server</span><div class="pc-p" style="margin-top:.25rem"><span class="av s" style="background:var(--u0)">PR</span>Priya Raman asked Nov 25</div><div class="why">I'd like to move my research notes (about 600 pages) into Acme Docs.</div></div><div class="acts"><button class="btn sec">Decline</button><button class="btn pri">Approve and install</button></div></div>
+      </div>
+     </div>
+    </div>
+   </div></div>
+   <p class="note">Approving installs the plugin and tells the person through the host's mentions callback ("Noor Haddad installed Translate selection"). Declining asks for an optional reason that the person sees on the card. Requests are kept 90 days.</p>
+  </figure>
+ </section>
+
+ <section class="rv-sec" id="f5">
+  <h2>5 · Blocked, unsigned and revoked <code>MKT-06 · ADR-083</code></h2>
+  <p>A plugin that cannot be installed still has a details page, with one banner that says why and who can change it. There is never an "install anyway" button.</p>
+  <div class="rv-row">
+   <figure class="fr" id="5a" style="flex:1 1 30rem"><figcaption><b>5a</b>Unsigned package<span class="dim">640 × 400</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="640" style="width:40rem;height:25rem"><div class="oc"><div class="st">
+     <div class="dt-hd"><span class="pt t-red"><svg class="i"><use href="#i-timer"/></svg></span><div class="dt-t"><h2>Pomodoro timer</h2><div class="pc-p">tomato-dev <span>·</span> Community <span>·</span> Block <span>·</span> 0.3.0</div></div><button class="btn blk"><svg class="i"><use href="#i-ban"/></svg>Not signed</button></div>
+     <div class="banner red"><svg class="i"><use href="#i-shield-alert"/></svg><div><span class="t"><b>This package is not signed</b>Acme Docs only allows signed plugins, so it can't be installed or requested. Nobody can check who built it or whether it changed since.</span></div></div>
+     <div class="banner gray"><svg class="i"><use href="#i-info"/></svg><div>For operators: unsigned packages can be allowed only from a private registry you name in <code>[plugins.registries.&lt;name&gt;] allow_unsigned</code>, never from the OpenCanvas Marketplace.</div></div>
+    </div></div></div></div>
+   </figure>
+   <figure class="fr" id="5b" style="flex:1 1 30rem"><figcaption><b>5b</b>Network address not allowed<span class="dim">640 × 400</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="640" style="width:40rem;height:25rem"><div class="oc"><div class="st">
+     <div class="dt-hd"><span class="pt t-pink"><svg class="i"><use href="#i-languages"/></svg></span><div class="dt-t"><h2>Translate selection</h2><div class="pc-p">Lingo Bridge <svg class="i sm vf"><use href="#i-badge-check"/></svg> Verified <span>·</span> Command <span>·</span> 2.6.0</div></div><button class="btn sec">Request</button></div>
+     <div class="banner amber"><svg class="i"><use href="#i-globe"/></svg><div><span class="t"><b>Connects to an address Acme Docs doesn't allow</b>It sends the selected text to api.lingobridge.example. An admin can allow that address for this plugin when approving a request.</span></div></div>
+     <div class="perm"><span class="pi"><svg class="i"><use href="#i-text"/></svg></span><div><b>Read the selected text</b><span>Only when you run the command</span></div></div>
+     <div class="perm"><span class="pi" style="color:var(--amber-fg)"><svg class="i"><use href="#i-globe"/></svg></span><div><b>Connect to api.lingobridge.example</b><span>Not on the allowed list</span></div></div>
+    </div></div></div></div>
+   </figure>
+   <figure class="fr" id="5c" style="flex:1 1 30rem"><figcaption><b>5c</b>Revoked by the marketplace<span class="dim">640 × 400</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="640" style="width:40rem;height:25rem"><div class="oc"><div class="st">
+     <div class="dt-hd"><span class="pt t-gray"><svg class="i"><use href="#i-file-down"/></svg></span><div class="dt-t"><h2>Sticky export</h2><div class="pc-p">Paperplane Tools <span>·</span> Exporter <span>·</span> 1.0.6</div></div><button class="btn sec"><svg class="i"><use href="#i-trash"/></svg>Remove</button></div>
+     <div class="banner red"><svg class="i"><use href="#i-ban"/></svg><div><span class="t"><b>Revoked on Nov 27 and switched off</b>The OpenCanvas Marketplace revoked it: "Sent canvas content to an undeclared origin." Your server switched it off 18 minutes later. Canvases are unchanged; nothing it exported is affected in Acme Docs.</span></div></div>
+     <div class="hint">Revocations arrive in the signed index, which every server checks hourly. A revoked version cannot be installed again, pinned or rolled back to.</div>
+    </div></div></div></div>
+   </figure>
+   <figure class="fr" id="5d" style="flex:1 1 30rem"><figcaption><b>5d</b>Incompatible, or server plugins off<span class="dim">640 × 400</span></figcaption>
+    <div class="fr-vp"><div class="fr-in" data-w="640" style="width:40rem;height:25rem"><div class="oc"><div class="st">
+     <div class="dt-hd"><span class="pt t-teal"><svg class="i"><use href="#i-file-up"/></svg></span><div class="dt-t"><h2>Confluence space importer 2.0</h2><div class="pc-p">Fieldnote Software <svg class="i sm vf"><use href="#i-badge-check"/></svg> Verified <span>·</span> Importer</div></div><button class="btn inst" disabled>Not available</button></div>
+     <div class="banner gray"><svg class="i"><use href="#i-info"/></svg><div><span class="t"><b>Needs OpenCanvas 0.6</b>This server runs 0.5.2. Version 1.8.2 works here and stays installed.</span></div></div>
+     <div class="banner amber"><svg class="i"><use href="#i-cpu"/></svg><div><span class="t"><b>Plugins that run on the server are off on this server</b>Seen on servers whose operator has not turned on <code>[plugins] server_code</code>. Browser-only plugins still work. Ask whoever runs OpenCanvas for Acme Docs.</span></div></div>
+    </div></div></div></div>
+   </figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f6">
+  <h2>6 · Phone <code>MKT-07</code></h2>
+  <p>Below 45em the marketplace is one column: categories become chips, details become one scrolling page, and the request form is a sheet. Installing from a phone works the same way (frame 3a as a sheet).</p>
+  <div class="rv-row">
+   <figure class="fr phf" style="flex:0 1 auto" id="6a"><figcaption><b>6a</b>Browse</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span class="hint">5G</span></div>
+     <div class="ph-hd"><svg class="i"><use href="#i-left"/></svg><h3>Plugins</h3><span class="av" style="background:var(--u1)">LF</span></div>
+     <div class="inp ph-srch"><svg class="i"><use href="#i-search"/></svg><input placeholder="Search plugins" data-ph-q aria-label="Search plugins"></div>
+     <div class="ph-cats" data-ph-cats></div>
+     <div class="ph-b" data-ph-list></div>
+    </div></div></div>
+   </figure>
+   <figure class="fr phf" style="flex:0 1 auto" id="6b"><figcaption><b>6b</b>Details</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span class="hint">5G</span></div>
+     <div class="ph-hd"><svg class="i"><use href="#i-left"/></svg><h3>Swimlanes</h3><button class="btn ic" aria-label="More"><svg class="i"><use href="#i-dots"/></svg></button></div>
+     <div class="ph-b">
+      <div class="dt-hd"><span class="pt t-blue" style="width:3.5rem;height:3.5rem"><svg class="i lg"><use href="#i-rows"/></svg></span><div class="dt-t" style="min-width:0"><h2 style="font-size:1.25rem">Swimlanes</h2><div class="pc-p">Northbeam Labs <svg class="i sm vf"><use href="#i-badge-check"/></svg> Verified</div><div class="pc-m">12,400 installs · updated Nov 20</div></div></div>
+      <div style="padding:0 1rem"><button class="btn pri bigbtn">Request</button></div>
+      <div class="dt-b">
+       <p style="margin:0 0 1rem;line-height:1.55">A database view with rows grouped into lanes by any select or person field, and columns by status. Drag cards across lanes.</p>
+       <div class="shot" style="height:8rem;margin-bottom:1rem"><div class="ln">Lane: Marco Bianchi</div><div style="display:flex;gap:.375rem;flex:1"><div class="cd">Fix CSV export timeout</div><div class="cd">SSO settings page</div></div></div>
+       <h3>It will be able to</h3>
+       <div class="perm"><span class="pi"><svg class="i"><use href="#i-eye"/></svg></span><div><b>See the rows shown in its view</b><span>Only rows you can see</span></div></div>
+       <div class="perm"><span class="pi"><svg class="i"><use href="#i-text"/></svg></span><div><b>Change cells in its view</b><span>Checked like your own edits</span></div></div>
+       <h3 style="margin-top:1rem">Security</h3>
+       <div class="perm"><span class="pi" style="color:var(--green-fg)"><svg class="i"><use href="#i-shield-check"/></svg></span><div><b>Signed and reviewed</b><span>Northbeam Labs · OpenCanvas Marketplace</span></div></div>
+       <div class="perm"><span class="pi"><svg class="i"><use href="#i-globe"/></svg></span><div><b>Runs in your browser only</b><span>No network</span></div></div>
+      </div>
+     </div>
+    </div></div></div>
+   </figure>
+   <figure class="fr phf" style="flex:0 1 auto" id="6c"><figcaption><b>6c</b>Request sheet</figcaption>
+    <div class="fr-vp"><div class="fr-in phone" data-w="390" style="width:24.375rem"><div class="ph">
+     <div class="ph-st"><span>9:41</span><span class="hint">5G</span></div>
+     <div style="flex:1;background:var(--sunk);opacity:.6"></div>
+     <div class="sheet">
+      <div class="grab"></div>
+      <div style="display:flex;gap:.625rem;align-items:center;margin-bottom:.75rem"><span class="pt t-blue"><svg class="i"><use href="#i-rows"/></svg></span><div><b>Request Swimlanes</b><div class="hint">Goes to the admins of Acme Docs</div></div></div>
+      <label class="hint" for="rq6">Why do you need it? (optional)</label>
+      <textarea class="ta" id="rq6" style="margin:.375rem 0 .75rem">Sprint board by owner for the Platform team</textarea>
+      <div class="hint" style="margin-bottom:.875rem">Noor Haddad usually answers within a day. You'll get a notification.</div>
+      <button class="btn pri bigbtn">Send request</button>
+      <button class="btn bigbtn" style="margin-top:.375rem">Cancel</button>
+     </div>
+    </div></div></div>
+   </figure>
+  </div>
+ </section>
+
+ <section class="rv-sec" id="f7">
+  <h2>7 · Keyboard and access</h2>
+  <p>Each card is a group named by the plugin, with the name as a link to its details and one action button named in full ("Install Swimlanes for Acme Docs", "Request Swimlanes"). Trust badges are text, never colour alone. Blocked buttons are buttons that explain, not disabled controls that cannot be focused.</p>
+  <figure class="fr"><div class="fr-vp" style="border-radius:.75rem;box-shadow:0 0 0 1px var(--rv-line)"><table class="kbd-t">
+   <tr><td>/</td><td>Focus search</td></tr>
+   <tr><td>Tab</td><td>Side list, filters, then each card's name and action</td></tr>
+   <tr><td>↑ ↓ in the side list</td><td>Move between categories; the grid follows</td></tr>
+   <tr><td>Enter on a name</td><td>Open details; Esc or Alt + ← goes back with focus on the same card</td></tr>
+   <tr><td>Esc in a dialog</td><td>Cancel; focus returns to the button that opened it</td></tr>
+  </table></div>
+  <p class="note">Search results announce their count ("4 plugins"). Install and request results are announced through the toast's status role. Everything works at 200% zoom and 320 px wide; the side list becomes chips below 45em.</p>
+  </figure>
+ </section>
+
+
+</main>
+<script>
+// Review page: theme and fit. Frames keep their real size (data-w, CSS px at a 16 px root) and are scaled to the column when "Fit to width" is on.
+(function(){
+  var root=document.documentElement, KEY='v05-plugins-theme', FKEY='v05-plugins-fit';
+  function get(k){try{return localStorage.getItem(k)}catch(e){return null}}
+  function set(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+  function sysDark(){return window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches}
+  function applyTheme(t){root.setAttribute('data-theme',t);document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.setAttribute('aria-pressed',String(b.getAttribute('data-theme-btn')===t))})}
+  applyTheme(get(KEY)||(sysDark()?'dark':'light'));
+  document.querySelectorAll('[data-theme-btn]').forEach(function(b){b.addEventListener('click',function(){var t=b.getAttribute('data-theme-btn');applyTheme(t);set(KEY,t)})});
+  var fit=get(FKEY)!=='0';
+  function layout(){
+    var wrap=document.querySelector('.rv-wrap');var cs=getComputedStyle(wrap);var avail=wrap.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight);
+    var rem=parseFloat(getComputedStyle(root).fontSize)/16;
+    document.querySelectorAll('.fr-in[data-w]').forEach(function(el){
+      var w=+el.getAttribute('data-w')*rem;var need=w+(el.classList.contains('phone')?44*rem:0);
+      el.style.zoom=fit?Math.min(1,avail/need):1;
+    });
+    document.querySelectorAll('[data-fit]').forEach(function(b){b.setAttribute('aria-pressed',String((b.getAttribute('data-fit')==='1')===fit))});
+  }
+  document.querySelectorAll('[data-fit]').forEach(function(b){b.addEventListener('click',function(){fit=b.getAttribute('data-fit')==='1';set(FKEY,fit?'1':'0');layout()})});
+  window.addEventListener('resize',layout);layout();
+})();
+</script>
+<script>
+(()=>{
+const PERM={
+ rows:["i-eye","See the rows shown in its view","Only rows and fields the person using it can see."],
+ cells:["i-text","Change cells in its view","Checked like a person's own edit; undo works."],
+ file:["i-file","Read the file you choose to import","Nothing else on your device or in Acme Docs."],
+ create:["i-plus","Create canvases from the import","Saved by Acme Docs where you choose."],
+ connect:["i-key","Keep a GitHub sign-in for each person who connects","Encrypted on the OpenCanvas server."],
+ actions:["i-zap","Add automation actions","They run as the rule's owner, with that person's access."],
+ unfurl:["i-link","Preview links to github.com issues","Title, state and assignee."],
+ read:["i-eye","Read the canvas being exported","Only when someone exports it."],
+ export:["i-file-down","Produce LaTeX, EPUB and ODT files","With a report of what did not convert."],
+ selection:["i-text","Read the selected text","Only when you run the command."],
+ block:["i-grid","Add a block to canvases","Its data stays in the canvas."]
+};
+const CATS=[["all","All plugins","i-grid"],["views","Database views","i-table"],["importers","Importers","i-file-up"],["exporters","Exporters","i-file-down"],["automation","Automation","i-zap"],["integrations","Integrations","i-network"],["commands","Commands","i-command"],["blocks","Blocks","i-layout"]];
+const BASE=[
+ {id:"swim",n:"Swimlanes",pub:"Northbeam Labs",pk:"v",cat:"views",tone:"blue",ic:"i-rows",d:"A database view with rows grouped into lanes by any select or person field, and columns by status. Drag cards across lanes.",inst:"12,400",up:"Nov 20",perms:["rows","cells"],st:"installed"},
+ {id:"road",n:"Roadmap view",pub:"OpenCanvas",pk:"f",cat:"views",tone:"purple",ic:"i-map",d:"Now, Next and Later columns, or quarters, over any database with a status or date field.",inst:"31,900",up:"Nov 24",perms:["rows","cells"]},
+ {id:"conf",n:"Confluence space importer",pub:"Fieldnote Software",pk:"v",cat:"importers",tone:"teal",ic:"i-file-up",d:"Turns a Confluence space export into canvases, keeping the page tree, tables, panels and attachments.",inst:"8,150",up:"Nov 12",srv:1,perms:["file","create"]},
+ {id:"obs",n:"Obsidian vault importer",pub:"Fieldnote Software",pk:"v",cat:"importers",tone:"purple",ic:"i-file-up",d:"Imports a Markdown vault: wiki links become canvas links, front matter becomes database fields, tags are kept.",inst:"5,920",up:"Nov 18",srv:1,perms:["file","create"]},
+ {id:"gh",n:"GitHub issues",pub:"Kestrel Dev",pk:"v",cat:"integrations",tone:"gray",ic:"i-git",d:"Sign in with GitHub, preview issue links, and create or comment on issues from automation rules.",inst:"9,700",up:"Nov 22",srv:1,net:"api.github.com",perms:["connect","actions","unfurl"]},
+ {id:"chat",n:"Post to chat channel",pub:"Relay Works",pk:"v",cat:"automation",tone:"green",ic:"i-message",d:"An automation action that posts a message with row fields to a chat channel your organisation approved.",inst:"6,310",up:"Oct 30",srv:1,net:"hooks.chat.acme.example",perms:["actions"],st:"installed"},
+ {id:"pan",n:"Pandoc exporter",pub:"Typeset Co",pk:"v",cat:"exporters",tone:"amber",ic:"i-file-down",d:"Export a canvas to LaTeX, EPUB or ODT, with a report of anything that did not convert.",inst:"4,480",up:"Nov 9",srv:1,perms:["read","export"],st:"installed"},
+ {id:"rt",n:"Reading time",pub:"Ines Park",pk:"c",cat:"commands",tone:"blue",ic:"i-clock",d:"A command that shows the word count and reading time of the canvas or the selection.",inst:"2,040",up:"Sep 14",perms:["selection"]},
+ {id:"pomo",n:"Pomodoro timer",pub:"tomato-dev",pk:"c",cat:"blocks",tone:"red",ic:"i-timer",d:"A shared focus timer block that everyone on the canvas sees counting down.",inst:"1,310",up:"Aug 2",perms:["block"],st:"unsigned"},
+ {id:"tr",n:"Translate selection",pub:"Lingo Bridge",pk:"v",cat:"commands",tone:"pink",ic:"i-languages",d:"Translate the selected text into 40 languages and insert it below or replace it.",inst:"7,860",up:"Nov 15",net:"api.lingobridge.example",perms:["selection"],st:"network"}
+];
+const FIND={views:"Add view on any database",importers:"Import",exporters:"Export",automation:"the rule editor, under Then",integrations:"the rule editor and Settings, Connections",commands:"the command menu (Ctrl K)",blocks:"the / menu"};
+const ic=(id,c="")=>`<svg class="i ${c}" aria-hidden="true"><use href="#${id}"/></svg>`;
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pubBadge=p=>p.pk==="v"?`${ic("i-badge-check","sm vf")}<span>Verified</span>`:p.pk==="f"?`${ic("i-shield-check","sm vf")}<span>OpenCanvas</span>`:`<span class="pill p-gray">Community</span>`;
+function action(p,mode){
+ const st=p.st;
+ if(st==="installed")return `<button class="btn inst act" aria-label="${p.n} is installed">${ic("i-check")}Installed</button>`;
+ if(st==="unsigned")return `<button class="btn blk act" title="Not signed. Acme Docs only allows signed plugins." aria-label="${p.n} cannot be installed: not signed">${ic("i-ban")}Not signed</button>`;
+ if(st==="network")return `<button class="btn blk act" title="Connects to ${p.net}, which Acme Docs does not allow" aria-label="${p.n} is blocked: network address not allowed"${mode==="person"?` data-req="${p.id}"`:""}>${ic("i-globe")}${mode==="person"?"Request":"Blocked"}</button>`;
+ if(st==="requested")return `<button class="btn req act">${ic("i-check")}Requested</button>`;
+ return mode==="admin"?`<button class="btn pri act" data-inst="${p.id}" aria-label="Install ${p.n} for Acme Docs">${ic("i-download")}Install</button>`:`<button class="btn sec act" data-req="${p.id}" aria-label="Request ${p.n}">Request</button>`;
+}
+function card(p,mode){
+ return `<article class="pc${p.st==="unsigned"||p.st==="network"?" dim":""}" aria-label="${esc(p.n)}"><div class="pc-h"><span class="pt t-${p.tone}">${ic(p.ic)}</span><div style="min-width:0"><button class="pc-n">${esc(p.n)}</button><div class="pc-p">${esc(p.pub)} ${pubBadge(p)}</div></div></div><p class="pc-d">${esc(p.d)}</p><div class="pc-f">${p.srv?`<span class="pill p-amber">${ic("i-cpu","sm")}Server</span>`:`<span class="pill p-gray">${ic("i-globe","sm")}Browser</span>`}${p.st==="unsigned"?`<span class="pill p-red">${ic("i-shield-alert","sm")}Unsigned</span>`:""}<span class="pc-m">${p.inst} installs</span>${action(p,mode)}</div></article>`;
+}
+function navHTML(cur,mode,counts){
+ let h=`<div class="cap">Discover</div>`;
+ CATS.forEach(([k,l,i])=>{h+=`<button class="nv" data-cat="${k}" aria-current="${cur===k}">${ic(i)}${l}<span class="n">${counts?counts[k]:""}</span></button>`});
+ h+=`<div class="cap">${mode==="person"?"Yours":"Manage"}</div>`;
+ if(mode==="person")h+=`<button class="nv" aria-current="false">${ic("i-clock")}My requests<span class="n">1</span></button>`;
+ else h+=`<button class="nv" aria-current="${cur==="installed"}">${ic("i-package")}Installed<span class="bd" aria-label="3 updates">3</span></button><button class="nv" aria-current="${cur==="requests"}">${ic("i-message")}Requests<span class="bd" aria-label="3 open">3</span></button><button class="nv" aria-current="${cur==="policy"}">${ic("i-shield-check")}Policy</button>`;
+ return h;
+}
+document.querySelectorAll("[data-nav]").forEach(n=>{const c={};CATS.forEach(([k])=>c[k]=k==="all"?BASE.length:BASE.filter(p=>p.cat===k).length);n.innerHTML=navHTML(n.dataset.nav,"admin",c)});
+
+function mount(el){
+ const P=BASE.map(p=>({...p}));
+ const mode=el.dataset.mk;const S={cat:"all",q:"",ver:false,brw:false};
+ el.innerHTML=`<nav class="mk-nav" aria-label="Plugin categories"></nav><div class="mk-main">
+  <div class="mk-hd"><h2 data-h>Discover</h2><div class="inp" style="width:20rem"><svg class="i"><use href="#i-search"/></svg><input type="search" placeholder="Search plugins, publishers" aria-label="Search plugins" data-q></div><span class="sp"></span><label class="chk"><input type="checkbox" data-ver>Verified publishers only</label><label class="chk"><input type="checkbox" data-brw>Runs in the browser only</label></div>
+  ${mode==="person"?`<div class="banner blue" style="margin-bottom:1rem">${ic("i-info")}<div><span class="t">Acme Docs admins approve plugins. Ask for one with <b style="display:inline">Request</b> and say what it is for.</span></div></div>`:""}
+  <div data-feat><div class="feat">
+   <div class="fc t-blue"><span class="k" style="color:var(--blue-fg)">Database view</span><b>Swimlanes</b><p>Lanes by owner or team, columns by status.</p><svg class="i big" style="color:var(--blue-fg)"><use href="#i-rows"/></svg></div>
+   <div class="fc t-gray"><span class="k">Integration</span><b>GitHub issues</b><p>Issue previews and actions in your automations.</p><svg class="i big"><use href="#i-git"/></svg></div>
+   <div class="fc t-teal"><span class="k" style="color:var(--teal-fg)">Importer</span><b>Confluence space importer</b><p>Bring a whole space across, page tree and all.</p><svg class="i big" style="color:var(--teal-fg)"><use href="#i-file-up"/></svg></div>
+  </div></div>
+  <div class="mk-sub"><h3 data-sub>All plugins</h3><span class="hint" data-cnt role="status"></span></div>
+  <div class="grid" data-grid></div></div>`;
+ const nav=el.querySelector(".mk-nav"),grid=el.querySelector("[data-grid]");
+ function list(){return P.filter(p=>(S.cat==="all"||p.cat===S.cat)&&(!S.ver||p.pk!=="c")&&(!S.brw||!p.srv)&&(!S.q||(p.n+" "+p.pub+" "+p.d).toLowerCase().includes(S.q.toLowerCase())))}
+ function render(){
+  const c={};CATS.forEach(([k])=>{c[k]=P.filter(p=>(k==="all"||p.cat===k)&&(!S.ver||p.pk!=="c")&&(!S.brw||!p.srv)).length});
+  nav.innerHTML=navHTML(S.cat,mode,c);
+  const L=list();const lab=CATS.find(x=>x[0]===S.cat)[1];
+  el.querySelector("[data-feat]").hidden=!!(S.q||S.cat!=="all"||S.ver||S.brw);
+  el.querySelector("[data-h]").textContent=S.cat==="all"?"Discover":lab;
+  el.querySelector("[data-sub]").textContent=S.q?`Results for "${S.q}"`:lab;
+  el.querySelector("[data-cnt]").textContent=`${L.length} plugin${L.length===1?"":"s"}`;
+  grid.innerHTML=L.length?L.map(p=>card(p,mode)).join(""):`<div class="empty">${ic("i-search","lg")}<div style="margin-top:.5rem;font-weight:500;color:var(--fg)">No plugins match</div><div class="hint">Try another word, or clear the filters.</div></div>`;
+ }
+ nav.addEventListener("click",e=>{const b=e.target.closest("[data-cat]");if(b){S.cat=b.dataset.cat;render();nav.querySelector(`[data-cat="${S.cat}"]`).focus()}});
+ nav.addEventListener("keydown",e=>{if(e.key!=="ArrowDown"&&e.key!=="ArrowUp")return;const bs=[...nav.querySelectorAll("[data-cat]")];const i=bs.indexOf(document.activeElement);if(i<0)return;e.preventDefault();const n=bs[(i+(e.key==="ArrowDown"?1:bs.length-1))%bs.length];S.cat=n.dataset.cat;render();nav.querySelector(`[data-cat="${S.cat}"]`).focus()});
+ el.querySelector("[data-q]").addEventListener("input",e=>{S.q=e.target.value.trim();render()});
+ el.querySelector("[data-ver]").addEventListener("change",e=>{S.ver=e.target.checked;render()});
+ el.querySelector("[data-brw]").addEventListener("change",e=>{S.brw=e.target.checked;render()});
+ const oc=el.closest(".oc");
+ function toast(html){oc.querySelectorAll(".toast").forEach(t=>t.remove());const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");t.innerHTML=html;oc.appendChild(t);setTimeout(()=>t.remove(),6000)}
+ function dialog(html,onOk,opener){
+  const m=document.createElement("div");m.className="mask";m.innerHTML=html;oc.appendChild(m);
+  const close=()=>{m.remove();opener&&opener.focus()};
+  m.querySelector("[data-x]").onclick=close;m.querySelector("[data-c]").onclick=close;
+  m.querySelector("[data-ok]").onclick=()=>{onOk(m);close()};
+  m.addEventListener("keydown",e=>{if(e.key==="Escape")close()});
+  (m.querySelector("textarea")||m.querySelector("[data-ok]")).focus();
+ }
+ grid.addEventListener("click",e=>{
+  const ib=e.target.closest("[data-inst]"),rb=e.target.closest("[data-req]");
+  if(ib){const p=P.find(x=>x.id===ib.dataset.inst);
+   const perms=p.perms.map(k=>PERM[k]).concat(p.net?[["i-globe",`Connect to ${p.net}`,"On your allowed list."]]:[]).concat(p.srv?[["i-cpu","Run on the OpenCanvas server","In the sandbox: 2 s and 64 MB per call."]]:[]);
+   dialog(`<div class="dlg" role="dialog" aria-modal="true" aria-label="Install ${esc(p.n)}"><div class="dlg-h"><span class="pt t-${p.tone}">${ic(p.ic)}</span><div style="flex:1"><h3>Install ${esc(p.n)} for Acme Docs?</h3><p>${esc(p.pub)} · ${p.pk==="c"?"community publisher, signed":"verified publisher, signed and reviewed"}</p></div><button class="btn ic" data-x aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><div class="hint" style="margin-bottom:.25rem">Everyone in Acme Docs will be able to use it. It will be able to:</div>${perms.map(([i,b,s])=>`<div class="perm"><span class="pi">${ic(i)}</span><div><b>${b}</b><span>${s}</span></div></div>`).join("")}</div><div class="dlg-f"><button class="btn" data-c>Cancel</button><button class="btn pri" data-ok>Install</button></div></div>`,()=>{p.st="installed";render();toast(`${ic("i-circle-check")}<span>${esc(p.n)} is on for Acme Docs. Find it in ${FIND[p.cat]}.</span>`)},ib)}
+  if(rb){const p=P.find(x=>x.id===rb.dataset.req);
+   dialog(`<div class="dlg" role="dialog" aria-modal="true" aria-label="Request ${esc(p.n)}"><div class="dlg-h"><span class="pt t-${p.tone}">${ic(p.ic)}</span><div style="flex:1"><h3>Request ${esc(p.n)}</h3><p>Goes to the admins of Acme Docs</p></div><button class="btn ic" data-x aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><label class="hint" for="rq-${p.id}">Why do you need it? (optional)</label><textarea class="ta" id="rq-${p.id}" style="margin-top:.375rem"></textarea>${p.st==="network"?`<div class="banner amber" style="margin-top:.75rem">${ic("i-globe")}<div>It connects to ${p.net}. An admin has to allow that address too.</div></div>`:""}</div><div class="dlg-f"><button class="btn" data-c>Cancel</button><button class="btn pri" data-ok>Send request</button></div></div>`,()=>{p.st="requested";render();toast(`${ic("i-circle-check")}<span>Request sent. Noor Haddad will see it under Requests.</span>`)},rb)}
+ });
+ render();
+}
+document.querySelectorAll("[data-mk]").forEach(mount);
+
+// phone
+const pl=document.querySelector("[data-ph-list]"),pc=document.querySelector("[data-ph-cats]"),pq=document.querySelector("[data-ph-q]");
+let pcat="all";
+function prender(){
+ pc.innerHTML=CATS.map(([k,l])=>`<button aria-pressed="${pcat===k}" data-c="${k}">${k==="all"?"All":l}</button>`).join("");
+ const q=pq.value.trim().toLowerCase();
+ const L=BASE.filter(p=>(pcat==="all"||p.cat===pcat)&&(!q||(p.n+" "+p.pub).toLowerCase().includes(q)));
+ pl.innerHTML=L.map(p=>card(p,"person")).join("")||`<div class="empty">No plugins match</div>`;
+}
+pc.addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(b){pcat=b.dataset.c;prender()}});
+pq.addEventListener("input",prender);prender();
+
+// policy radio and switches
+document.querySelectorAll("[data-radio]").forEach(g=>g.addEventListener("click",e=>{const o=e.target.closest(".opt");if(!o)return;g.querySelectorAll(".opt").forEach(x=>{const on=x===o;x.classList.toggle("on",on);x.setAttribute("aria-checked",on);x.tabIndex=on?0:-1})}));
+document.querySelectorAll("button.sw").forEach(s=>s.addEventListener("click",()=>{if(!s.disabled)s.setAttribute("aria-checked",s.getAttribute("aria-checked")!=="true")}));
+document.querySelectorAll("[data-open-3d]").forEach(b=>b.addEventListener("click",()=>document.getElementById("3d").scrollIntoView({behavior:"smooth"})));
+})();
+</script>
+</body></html>

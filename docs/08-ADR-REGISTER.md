@@ -82,6 +82,10 @@ The owner signed off the design documents and every remaining Proposed entry on 
 | ADR-078 | Formula engine, relations and rollups (DB4-01..06, docs/36 §6.1): one typed engine (`oc-formula`, Rust, native in the server and WASM in the editor, loaded lazily) with errors as values (`#TYPE #REF #CYCLE #DIV/0 #LIMIT`), only expressions stored and values computed through a dependency graph, limits (4 KB, depth 64, step budget per cell), `now()` never triggers automation; relation fields hold row ids, same canvas `{dbId, rowIds}` (optionally two-way) or across canvases only through a live block `{fileId, dbId, rowIds}` read under the live file's ACL ("No access" otherwise), one-way; rollups aggregate related rows, across canvases from the live projection on refresh; MOD-01 validates on every write path | Accepted (owner, 2026-11-26) |
 | ADR-079 | Benchmark program and performance budgets in CI (BENCH-01..05, LAZY-01, docs/36 §3): `scripts/bench/` runs scenario files (`bench/scenarios/*.toml`: rooms, peers, load mix, fixture, duration, faults, pass rules; docs/22 A–E, R, K, T kept) locally and in CI; every result is JSON with commit, hardware, store and load mix, and is refused for publication without them; pull requests gate the initial JS (300 → 260 → 240 → 220 KB gzip, `check-budget.mjs --forbid` for advanced modules in the initial graph), heap per fixture (Chromium, after GC, +5% fails) and first screen, plus quick server runs; a nightly job fails at p99 > 20% or RSS > 10% worse than the median of the last seven runs; full X10K, R1K and STORM run weekly on a reference machine and publish to the site's Benchmarks page with hardware and mix; budgets change only in a reviewed commit that says why | Accepted (owner, 2026-11-26; reference runs on the owner's Mac until a machine is chosen, results marked local) |
 | ADR-080 | Spreadsheet block on opencalc's engine (SHEET-01.., prototype `v04-approved/spreadsheet.html`): the block computes with CasualOffice/opencalc's Rust crates (`casual-calc-sdk` without text shaping and rasterising: model, formula, eval, transaction, xlsx/ods import and export), pinned to a git revision, native in the server and WASM in the editor behind our own JSON bridge (as `oc-formula`), loaded only when a spreadsheet block comes within a screen; opencalc's editor (`<opencalc-sheet>`) and its OT collaboration are not used. Yjs stays the source of truth and the engine is a per-client cache: per sheet `rows`/`cols` are `Y.Array`s of stable ids and cells a `Y.Map` keyed `rowId:colId` holding the input (formulas with references stored as row/column ids, shown and fed to the engine as A1) and a style key; values are computed, never stored. The block is a partial-sync part (ADR-076) and lives in `.ocanvas` as Yjs like every block; exports, `search.json` and the API show values from the native engine. `oc-formula` does not delegate to opencalc (different language, typed records, relations and rollups); functions both have are cross-checked on shared vectors | Accepted (owner, 2026-11-27: engine yes, our grid) |
+| ADR-081 | Link index across canvases (LINK-01..05, docs/38 §2): a `canvasLink` inline node `{fileId, blockId?, rowId?, label}` (`[[` picker, pasted host URLs matching `[host.links] url_patterns`; fallback a `link` mark) with block, heading and row targets; the server keeps `link_edges` (ids and kind only: `link`, `embed`, `relation`; no titles or text; migration 0014) replaced per file at each save the host acknowledged; backlinks read through the host's ACL at read time (`POST /access/batch`, else `/access`), hidden sources dropped without a count; titles from the host, excerpts made at read time and kept 5 min in memory only; unlinked mentions through the host's `GET /search`; `[host.flags] links` off by default; Redis-only storage refused | Proposed (2026-11-28) |
+| ADR-082 | Graph API (GRAPH-01..03, docs/38 §3): `GET /api/v1/graph` local (`root`, depth 1–3, ≤ 500 nodes) and full (≤ 2,000 most-connected readable canvases, `truncated`) from `link_edges`; every node access-checked before it is expanded, so hidden canvases neither appear nor connect others; optional host callback `GET /files/readable`; block nodes optional; 30 s per-reader cache; 10 requests/min (2 full); MCP `canvas_graph`; view in a lazy chunk with a list fallback | Proposed (2026-11-28) |
+| ADR-083 | Plugin packaging, signing and distribution (PLUG-01..06, docs/38 §4): one `.ocplugin` zip with `plugin.json` (id, SemVer, `engines`, `contributes`, `permissions`, per-file sha384) that may contribute blocks, views, commands, importers, exporters, actions and providers; block packages are plugins (`OC_BLOCKS_DIR` kept); publisher Ed25519 signature plus marketplace countersignature; a signed `index.json` with version and 7-day expiry (rollback and freeze refused) carrying revocations fetched hourly; private registries in the same format and signed offline bundles; operator (`[plugins]` registries, `server_code`, ceilings), host admin (`perms.plugins: "admin"` or `/api/v1/plugins`) and person (request) roles; per-host policy; auto-update only when permissions do not change | Proposed (2026-11-28) |
+| ADR-084 | SDK extension points and the server runtime (EXT-01..08, docs/38 §5): database views and commands run in the block origin's sandbox (ADR-040) with a checked bridge; importers, exporters, automation actions and integration providers run as WebAssembly components on wasmtime (world `opencanvas:plugin@0.5.0`; fuel, 256 MB, 10 s / 60 s, fresh instance per call, bounded pool; host imports `log`, `http-fetch` to declared and allowed origins, `connection-token`, `clock`, `random`; no filesystem, sockets or environment); outputs are data applied through the tool layer (role filter, MOD-01); provider connections per person or organisation encrypted under `OC_KEK`; amends ADR-040: server code is off unless `[plugins] server_code = true` | Proposed (2026-11-28) |
 | ADR-011 | Design-first UI gate: every UI is approved as an Artifact prototype before implementation | Accepted (user requirement) |
 
 ---
@@ -1126,3 +1130,67 @@ use of a sheet; − Yjs metadata per cell (opencalc's reason for OT): 100,000-ro
 paste; − formulas stored with ids need a converter both ways (tested by property tests: A1 → ids → A1 is identity).
 
 **Open for the owner.** Confirm engine-not-editor; confirm the per-block cell cap is set after the 100,000-row measurement.
+
+### ADR-081 — Link index across canvases (Proposed 2026-11-28)
+**Context.** The owner made backlinks and a knowledge graph part of v0.5 (2026-11-28). Links between
+canvases today are host URLs in text marks (ADR-023): OpenCanvas cannot say what links to a canvas.
+ADR-065 rejected an OpenCanvas search index because it would hold content and duplicate the host's
+ACL. Backlinks need an inverse lookup that no single file contains.
+**Decision.** See the register row and docs/38 §2. The index is a table of id pairs written only
+from saves the host acknowledged, so it describes what the host stores; it is never an answer on
+its own: every read checks the reader's role on every source with the host first, and drops what
+the reader cannot open without counting it. Titles, paths and excerpts are fetched at read time.
+**Alternatives.** (A) Host-built backlinks from `search.json` (no OpenCanvas state, but every host
+would rebuild link parsing and the graph; kept as an option for hosts that refuse the flag).
+(B) Excerpts stored with each edge, encrypted (faster panel; text at rest; owner question 1).
+(C) An index in Redis for Redis-only clusters (a second implementation of a relational query).
+**Consequences.** + backlinks, unlinked mentions and the graph with no content in OpenCanvas;
++ the host's ACL decides every answer; − a new table to migrate and back up (it can be rebuilt by
+the backfill call); − read cost grows with the number of sources (`/access/batch`, caches, limits);
+− results are as fresh as the last save; − an explicit, narrow extension of ADR-001 (metadata, like
+`automation_schedule`).
+
+### ADR-082 — Graph API (Proposed 2026-11-28)
+**Context.** A knowledge graph view and agents (MCP) need the neighbourhood of a canvas and an
+overview of a workspace without learning anything about canvases the reader cannot open.
+**Decision.** See the register row and docs/38 §3. The walk checks access before it expands a node,
+so a hidden canvas is neither shown nor used as a bridge; the full graph is a capped, best-effort
+view of the most-connected readable canvases unless the host offers `GET /files/readable`.
+**Consequences.** + one API for the editor, clients and MCP; + no leak through structure or counts;
+− the full graph is approximate (`truncated`) on hosts without `/files/readable`; − access checks
+dominate the cost, hence the batch callback, caches and rate limits.
+
+### ADR-083 — Plugin packaging, signing and distribution (Proposed 2026-11-28)
+**Context.** Block packages (ADR-058) are copied into a directory by the operator, with an SRI hash
+but no signature, registry, update or revocation. v0.5 adds a marketplace and plugins that can run
+on the server (ADR-084), so who made a package, whether it was reviewed, and whether it is still
+trusted must be checked by the server, not by the operator's care.
+**Decision.** See the register row and docs/38 §4. Two signatures (publisher and marketplace) over
+a manifest that hashes every file; a small TUF-style signed index (offline root, online timestamp
+key, version and expiry) that also carries revocations; the same format for private registries;
+policy enforced on the server per host, with three roles: operator, host admin, person.
+**Alternatives.** Sigstore keyless signing with a transparency log (no publisher key management,
+but needs an online OIDC flow and a log for air-gapped servers; owner question 5). Unsigned
+packages with hashes only (today; no answer to a compromised registry or a revoked plugin).
+**Consequences.** + tampering, rollback and freeze are refused; + a bad plugin can be switched off
+everywhere within an hour; + one format for public, private and offline; − key management for
+publishers and the project; − a review service to run; − the index must be refreshed at least
+weekly or plugins stop updating (they keep running).
+
+### ADR-084 — SDK extension points and the server runtime (Proposed 2026-11-28)
+**Context.** ADR-040 kept third-party code out of the server. Importers, exporters, automation
+actions and integration providers need to run where the file and the rule run, without a browser,
+and v0.6's automation and app building will build on them. Database views and commands are UI and
+can stay in the browser sandbox.
+**Decision.** See the register row and docs/38 §5. Server parts are WebAssembly components with no
+ambient authority: everything they can do is a host import we write, limited per call; what they
+produce is data that goes through the same tool layer as every other write. Browser parts extend
+the existing block sandbox and bridge.
+**Alternatives.** Remote calls to a publisher's service only (no code on the server, but the
+document leaves the operator's network, latency per call, and availability depends on the
+publisher; owner question 4). Native dynamic libraries (no isolation; rejected). A JavaScript
+engine in the server (larger attack surface than wasmtime and no fuel metering; rejected).
+**Consequences.** + plugins work for every host, the API and MCP, not only in the editor; + strict
+resource limits and no ambient I/O; + one runtime for v0.6 scripted steps; − a new large dependency
+(`wasmtime`) to keep current and audit; − compile time per plugin version (cached); − plugin
+authors need a component toolchain (Rust, or others through the SDK).

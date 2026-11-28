@@ -32,7 +32,8 @@ open to a broad developer ecosystem (ADR-038).
 | [v0.2.0](32-RELEASE-v0.2.0.md) (released 2026-11-25) | Stable headless API (`/api/v1`) with TypeScript and Rust clients, webhooks, version history, the block SDK, and host editor profiles. Live blocks moved to v0.3 |
 | [v0.3](34-ROADMAP-v0.3.md) | Portable live blocks, offline-first editing, search and automation (plan proposed 2026-11-26) |
 | [v0.4](36-ROADMAP-v0.4.md) | Performance and partial synchronization, as a benchmark, performance and maturity release: partial sync, a benchmark program with published results and CI gates, 10k connections per node and 1,000 editors in a room, lower browser memory and lazy modules; reliability drills and a security audit; also formulas, relations, rollups, virtualized databases, integrations and UX fixes (plan proposed 2026-11-26) |
-| v0.5 | Plugin ecosystem, developer tooling and enterprise hardening |
+| [v0.5](38-ROADMAP-v0.5.md) | Plugins with a marketplace (signed packages, admin policy), backlinks and linked references across canvases, a knowledge graph, and SDK extension points: database views, commands, importers, exporters, automation actions and integration providers (plan proposed 2026-11-28) |
+| v0.6 | Advanced automation and app building (direction set 2026-11-28) |
 
 Alongside the releases, **structured diagramming** is its own workstream ([docs/29](29-DIAGRAMMING.md)):
 diagram mode on a board, shape libraries, ports, connectors that route around shapes, auto-layout,
