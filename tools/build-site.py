@@ -200,7 +200,7 @@ def howto_run_it() -> dict:
     steps.append(plain(m2.group(3)))
     url = sitelib.BASE_URL + "docs/getting-started.html#run-it"
     return {"@type": "HowTo", "name": "Run OpenCanvas on your machine",
-            "description": "Build the editor, start the OpenCanvas server and the sample host, and open a file in two tabs.",
+            "description": "Start the OpenCanvas server from the container image or the Linux install script (checksum verified); the rest of the page builds it from source.",
             "url": url, "inLanguage": "en",
             "step": [{"@type": "HowToStep", "position": i + 1, "text": t, "url": url} for i, t in enumerate(steps)]}
 
