@@ -22,6 +22,8 @@ export function CommentsPanel(props: {
   onActivate(id: string): void;
   onJump(id: string): void;
   onClose(): void;
+  /** LINK-04 (2b): the side panel's tab to "Linked from", when links are on. */
+  onLinkedFrom?: () => void;
 }) {
   useTick(30000);
   const [showResolved, setShowResolved] = useState(false);
@@ -51,6 +53,16 @@ export function CommentsPanel(props: {
           <Ic name="x" />
         </button>
       </div>
+      {props.onLinkedFrom ? (
+        <div className="stabs" role="tablist" aria-label="Side panel">
+          <button type="button" role="tab" aria-selected="true" className="stab on">
+            Comments
+          </button>
+          <button type="button" role="tab" aria-selected="false" className="stab" onClick={props.onLinkedFrom}>
+            Linked from
+          </button>
+        </div>
+      ) : null}
       <div className="sbd">
         {list.length ? (
           list.map((t) => <ThreadCard key={t.id} {...props} t={t} canWrite={canWrite} />)

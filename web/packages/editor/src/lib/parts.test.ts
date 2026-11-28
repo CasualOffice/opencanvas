@@ -131,4 +131,19 @@ describe("CrossDocUndo (PSYNC-03)", () => {
     um.redo();
     expect(title(part)).toBe("Uno");
   });
+
+  it("undoes a spreadsheet part's edit in the canvas stack (v0.4.1)", () => {
+    const origin = { me: true };
+    const main = new Y.Doc();
+    const um = new Y.UndoManager(main.getText("t"), { trackedOrigins: new Set([origin]), captureTimeout: 0 });
+    const undo = new CrossDocUndo(um);
+    const part = new Y.Doc();
+    const cells = new Y.Map<unknown>();
+    part.transact(() => part.getMap("sheets").set("s1", new Y.Map([["cells", cells]])));
+    undo.attach(part);
+    part.transact(() => cells.set("r1:c1", "5"), origin);
+    expect(undo.canUndo()).toBe(true);
+    um.undo();
+    expect(cells.get("r1:c1")).toBeUndefined();
+  });
 });

@@ -195,6 +195,84 @@ export interface AutomationRun {
   at: number;
 }
 
+/** Canvases that link here, as the reader may see them (ADR-081) */
+export interface Backlinks {
+  fileId: string;
+  items: Array<{
+    fileId: string;
+    /** The host's current title */
+    title: string;
+    path: string | null;
+    updatedAt: string | null;
+    updatedBy: string | null;
+    /** When the link index last saw this canvas saved (ms) */
+    savedAt: number | null;
+    role: string | null;
+    refs: Array<{
+      /** The block of the linking canvas that holds the link (empty: none) */
+      block: string;
+      toBlock: string | null;
+      toRow: string | null;
+      kind: "link" | "embed" | "relation";
+      section: string | null;
+      /** Plain text around the link, at most 240 characters; escape it before showing */
+      excerpt: {
+        before: string;
+        link: string;
+        after: string;
+      } | null;
+    }>;
+  }>;
+  /** Linking canvases the reader can open (matching the filter) */
+  total: number;
+  /** Per block id of this canvas: linking canvases the reader can open */
+  blocks: Record<string, unknown>;
+  next: string | null;
+}
+
+export interface LinkIndexResult {
+  indexed: Array<{
+    fileId: string;
+    links: number;
+    dropped: number;
+  }>;
+  failed: Array<{
+    fileId: string;
+    code: "not_found" | "host_error" | "not_ocanvas";
+  }>;
+}
+
+export interface LinkDeleteResult {
+  fileId: string;
+  removed: number;
+}
+
+/** Canvases (and optionally blocks) the reader can open, and the links between them (ADR-082) */
+export interface Graph {
+  nodes: Array<{
+    /** The file id, or `<fileId>#<blockId>` for a block node */
+    id: string;
+    kind: "canvas" | "block";
+    fileId: string;
+    blockId?: string;
+    title: string | null;
+    path: string | null;
+    space: string | null;
+    updatedAt: string | null;
+    in: number;
+    out: number;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    /** `in`: a block node to its canvas */
+    kind: "link" | "embed" | "relation" | "in";
+  }>;
+  truncated: boolean;
+  /** Every readable node, given only when every candidate was checked */
+  total?: number;
+}
+
 /** Path parameters, query, body and answer of every operation. */
 export interface Operations {
   /** GET /api/v1/openapi.json: This document */
@@ -763,6 +841,56 @@ export interface Operations {
     };
     response: Record<string, unknown>;
   };
+  /** GET /api/v1/files/{fileId}/backlinks: Canvases that link to this canvas */
+  listBacklinks: {
+    path: { fileId: string; };
+    query: {
+      /** Only links to this block id of the canvas */
+      block?: string;
+      /** `link`, `embed`, `relation` or `all` (default) */
+      kind?: "link" | "embed" | "relation" | "all";
+      /** `next` of the previous page */
+      cursor?: string;
+      /** Linking canvases per page, 1-50 (default 20) */
+      limit?: number;
+    };
+    body: never;
+    response: Backlinks;
+  };
+  /** DELETE /api/v1/links/files/{fileId}: Drop a deleted file's links from the index */
+  deleteFileLinks: {
+    path: { fileId: string; };
+    query: {};
+    body: never;
+    response: LinkDeleteResult;
+  };
+  /** POST /api/v1/links/index: Backfill the link index from your files */
+  indexLinks: {
+    path: {};
+    query: {};
+    body: {
+      fileIds: Array<string>;
+    };
+    response: LinkIndexResult;
+  };
+  /** GET /api/v1/graph: The link graph between canvases */
+  getGraph: {
+    path: {};
+    query: {
+      /** A file id for a local graph; absent for the full graph */
+      root?: string;
+      /** 1-3 around `root` (default 1) */
+      depth?: number;
+      /** Comma-separated `link`, `embed`, `relation` (default all) */
+      kinds?: string;
+      /** Add block nodes for link targets (default false) */
+      blocks?: boolean;
+      /** Nodes: 1-500 for a local graph (default 200), 1-2000 for the full graph (default 2000) */
+      limit?: number;
+    };
+    body: never;
+    response: Graph;
+  };
 }
 
 export type OperationId = keyof Operations;
@@ -823,6 +951,10 @@ export const operations: { readonly [K in OperationId]: OperationInfo } = {
   saveAutomation: {"method": "PUT", "path": "/api/v1/files/{fileId}/automations/{ruleId}", "scope": "canvas:write", "pathParams": ["fileId", "ruleId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
   deleteAutomation: {"method": "DELETE", "path": "/api/v1/files/{fileId}/automations/{ruleId}", "scope": "canvas:write", "pathParams": ["fileId", "ruleId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": true},
   enableAutomation: {"method": "POST", "path": "/api/v1/files/{fileId}/automations/{ruleId}/enable", "scope": "canvas:write", "pathParams": ["fileId", "ruleId"], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": true},
+  listBacklinks: {"method": "GET", "path": "/api/v1/files/{fileId}/backlinks", "scope": "canvas:read", "pathParams": ["fileId"], "query": ["block", "kind", "cursor", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
+  deleteFileLinks: {"method": "DELETE", "path": "/api/v1/links/files/{fileId}", "scope": null, "pathParams": ["fileId"], "query": [], "body": null, "response": "json", "paged": null, "idempotent": false},
+  indexLinks: {"method": "POST", "path": "/api/v1/links/index", "scope": null, "pathParams": [], "query": [], "body": "json", "response": "json", "paged": null, "idempotent": false},
+  getGraph: {"method": "GET", "path": "/api/v1/graph", "scope": "canvas:read", "pathParams": [], "query": ["root", "depth", "kinds", "blocks", "limit"], "body": null, "response": "json", "paged": null, "idempotent": false},
 };
 
 /** The arguments of an operation: its path parameters, plus `query` and `body` when it has them. */
@@ -1029,5 +1161,25 @@ export abstract class GeneratedApi {
   /** Switch a rule on or off (`POST /api/v1/files/{fileId}/automations/{ruleId}/enable`, canvas:write). */
   async enableAutomation(params: Params<"enableAutomation">, options?: CallOptions): Promise<Operations["enableAutomation"]["response"]> {
     return (await this.call("enableAutomation", params, options)).data;
+  }
+
+  /** Canvases that link to this canvas (`GET /api/v1/files/{fileId}/backlinks`, canvas:read). */
+  async listBacklinks(params: Params<"listBacklinks">, options?: CallOptions): Promise<Operations["listBacklinks"]["response"]> {
+    return (await this.call("listBacklinks", params, options)).data;
+  }
+
+  /** Drop a deleted file's links from the index (`DELETE /api/v1/links/files/{fileId}`). */
+  async deleteFileLinks(params: Params<"deleteFileLinks">, options?: CallOptions): Promise<Operations["deleteFileLinks"]["response"]> {
+    return (await this.call("deleteFileLinks", params, options)).data;
+  }
+
+  /** Backfill the link index from your files (`POST /api/v1/links/index`). */
+  async indexLinks(params: Params<"indexLinks">, options?: CallOptions): Promise<Operations["indexLinks"]["response"]> {
+    return (await this.call("indexLinks", params, options)).data;
+  }
+
+  /** The link graph between canvases (`GET /api/v1/graph`, canvas:read). */
+  async getGraph(params?: Params<"getGraph">, options?: CallOptions): Promise<Operations["getGraph"]["response"]> {
+    return (await this.call("getGraph", (params ?? {}) as Params<"getGraph">, options)).data;
   }
 }

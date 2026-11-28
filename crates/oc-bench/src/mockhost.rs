@@ -34,6 +34,9 @@ pub struct HostStats {
     /// Keep every file's latest save and serve it on load (crash/cluster verification).
     pub store: std::sync::atomic::AtomicBool,
     pub stored: Mutex<HashMap<String, Vec<u8>>>,
+    /// The version each stored file was saved as: its load answers that etag, as a real host
+    /// does (a room compares it with the version it saved, PSYNC-BUG-2).
+    pub stored_version: Mutex<HashMap<String, u64>>,
     /// Saves received after `mark` was set: fileId -> (when, bytes) of the first one.
     pub mark: Mutex<Option<Instant>>,
     pub first_after_mark: Mutex<HashMap<String, (Instant, Vec<u8>)>>,
@@ -97,10 +100,21 @@ async fn load(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>) -> Response
     ctx.stats.delay().await;
     let kept = ctx.stats.stored.lock().expect("lock").get(&file).cloned();
     if let Some(b) = kept {
+        let v = ctx
+            .stats
+            .stored_version
+            .lock()
+            .expect("lock")
+            .get(&file)
+            .copied()
+            .unwrap_or(1);
         return (
             [
-                (header::CONTENT_TYPE, "application/vnd.opencanvas+zip"),
-                (header::ETAG, "\"1\""),
+                (
+                    header::CONTENT_TYPE,
+                    "application/vnd.opencanvas+zip".to_string(),
+                ),
+                (header::ETAG, format!("\"{v}\"")),
             ],
             b,
         )
@@ -150,6 +164,13 @@ async fn save(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>, body: Bytes
             .expect("lock")
             .insert(file.clone(), body.to_vec());
     }
+    let v = s.version.fetch_add(1, Ordering::Relaxed) + 2;
+    if s.store.load(Ordering::Relaxed) {
+        s.stored_version
+            .lock()
+            .expect("lock")
+            .insert(file.clone(), v);
+    }
     s.save_bytes.fetch_add(body.len() as u64, Ordering::Relaxed);
     if let Some(t) = s.unsaved_since.lock().expect("lock").remove(&file) {
         s.save_lag_ms
@@ -157,7 +178,6 @@ async fn save(State(ctx): State<Arc<Ctx>>, Path(file): Path<String>, body: Bytes
             .expect("lock")
             .push(t.elapsed().as_millis() as u32);
     }
-    let v = s.version.fetch_add(1, Ordering::Relaxed) + 2;
     (
         [(header::CONTENT_TYPE, "application/json")],
         format!("{{\"version\":\"{v}\"}}"),

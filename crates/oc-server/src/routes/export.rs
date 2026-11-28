@@ -335,7 +335,20 @@ pub(super) struct RenderReq<'a> {
 
 /// `document.json` as this export's viewer sees it.
 fn doc_json(doc: &Doc, req: &RenderReq<'_>) -> serde_json::Value {
-    let mut json = oc_model::doc_to_json(doc);
+    view(oc_model::doc_to_json(doc), req)
+}
+
+/// The export view of a document for a format: as [`doc_json`], and canvas links written as
+/// links to their host URLs with their labels (LINK-01, docs/38 §2.2 item 4).
+fn export_json(host: &HostConfig, doc: &Doc, req: &RenderReq<'_>) -> serde_json::Value {
+    let mut json = doc_json(doc, req);
+    let links = crate::links::LinksCfg::of(host);
+    oc_model::links::lower(&mut json, links.template.as_deref());
+    json
+}
+
+/// `document.json` with this export's names and live content.
+fn view(mut json: serde_json::Value, req: &RenderReq<'_>) -> serde_json::Value {
     if let Some(names) = req.people {
         oc_model::people::relabel(&mut json, names);
     } else {
@@ -402,13 +415,13 @@ async fn render_once(
             // exported files get shared, and the ticket would let anyone open the canvas.
             let opts = oc_model::export::Options::default();
             (
-                oc_model::export::to_markdown_with(&doc_json(doc, &req), &opts).into(),
+                oc_model::export::to_markdown_with(&export_json(host, doc, &req), &opts).into(),
                 "text/markdown; charset=utf-8",
                 "md",
             )
         }
         "html" => (
-            oc_model::export::to_html(&doc_json(doc, &req)).into(),
+            oc_model::export::to_html(&export_json(host, doc, &req)).into(),
             "text/html; charset=utf-8",
             "html",
         ),
@@ -438,7 +451,7 @@ async fn render_once(
             (bytes.into(), "application/vnd.opencanvas+zip", "ocanvas")
         }
         "docx" => {
-            let json = doc_json(doc, &req);
+            let json = export_json(host, doc, &req);
             let images = images(state, host, &req, &json).await;
             let (bytes, notes) =
                 tokio::task::spawn_blocking(move || oc_model::docx::to_docx(&json, &images))
@@ -458,7 +471,7 @@ async fn render_once(
                     "PDF export needs OC_PDF_RENDERER=gotenberg:<url>; use the print view instead",
                 ));
             };
-            let json = doc_json(doc, &req);
+            let json = export_json(host, doc, &req);
             let images = images(state, host, &req, &json).await;
             let html = oc_model::export::to_html_with(
                 &json,

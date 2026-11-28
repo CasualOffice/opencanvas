@@ -21,6 +21,11 @@
 //   BENCH_FIXTURES=s,m   BENCH_RUNS=3   BENCH_MACHINE=local   E2E_SKIP_BUILD=1   E2E_PORT_SHIFT=500
 //   BENCH_PROFILE=1   CPU profile of the first run up to the first screen: the 40 functions with
 //                     the most self time, printed (an unminified build makes them readable)
+//   BENCH_PARTIAL=0   the host turns `[host.flags] partial_sync` off (whole rooms; on by default
+//                     since 0.4, so unset measures what a host gets)
+//   BENCH_REOPEN=1    one file id per fixture: run 1 opens it cold, every later run opens it
+//                     again after the room has closed (OC_ROOM_IDLE_MS 1500 unless set), the
+//                     way a person reopens a canvas (PSYNC-BUG-2: the kept split)
 //   BENCH_PARTIAL=1   the host has `[host.flags] partial_sync` (PSYNC-02/03): databases and
 //                     boards load as subdocuments when scrolled near; `parts` counts the
 //                     database and board views showing content (not the placeholder) after
@@ -42,7 +47,9 @@ const OC = `http://127.0.0.1:${PORT}`;
 const FIXTURES = (process.env.BENCH_FIXTURES ?? "s,m,l,50mb").split(",").filter(Boolean);
 const RUNS = Number(process.env.BENCH_RUNS ?? 3);
 const MACHINE = process.env.BENCH_MACHINE ?? "local";
-const PARTIAL = !!process.env.BENCH_PARTIAL;
+const PARTIAL = !!process.env.BENCH_PARTIAL && process.env.BENCH_PARTIAL !== "0";
+const WHOLE = process.env.BENCH_PARTIAL === "0";
+const REOPEN = !!process.env.BENCH_REOPEN;
 const SECRET = "bench-secret-0123456789abcdef0123456789";
 const TGT = path.resolve(ROOT, process.env.CARGO_TARGET_DIR ?? "target");
 const DIST = path.join(ROOT, "web/packages/editor/dist");
@@ -77,6 +84,8 @@ function jwt(fileId: string, i: number) {
   return `${head}.${body}.${sig}`;
 }
 
+const STAMP = Date.now() % 1e8;
+
 const median = (v: number[]) => {
   const s = v.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
   return s.length ? s[Math.floor((s.length - 1) / 2)] : null;
@@ -96,11 +105,11 @@ test.beforeAll(async () => {
   work = fs.mkdtempSync(path.join(os.tmpdir(), "oc-browser-bench-"));
   fs.writeFileSync(
     path.join(work, "hosts.toml"),
-    `[[host]]\nid = "bench"\nname = "Bench host"\nmode = "jwt"\njwt_alg = "HS256"\njwt_secret = "${SECRET}"\napi_key = "bench-api-key"\ncallback_base = "http://127.0.0.1:${HOST_PORT}/api"\n${PARTIAL ? "\n[host.flags]\npartial_sync = true\n" : ""}`,
+    `[[host]]\nid = "bench"\nname = "Bench host"\nmode = "jwt"\njwt_alg = "HS256"\njwt_secret = "${SECRET}"\napi_key = "bench-api-key"\ncallback_base = "http://127.0.0.1:${HOST_PORT}/api"\n${PARTIAL || WHOLE ? `\n[host.flags]\npartial_sync = ${PARTIAL}\n` : ""}`,
   );
   const log = fs.openSync(path.join(work, "logs.txt"), "a");
   children.push(
-    spawn(path.join(TGT, "release/oc-bench"), ["host", "--host-port", String(HOST_PORT)], {
+    spawn(path.join(TGT, "release/oc-bench"), ["host", "--host-port", String(HOST_PORT), ...(REOPEN ? ["--keep-saves"] : [])], {
       cwd: ROOT, env: { ...process.env, OC_BENCH_FIXTURES: path.join(ROOT, "bench/fixtures") }, stdio: ["ignore", log, log],
     }),
   );
@@ -114,7 +123,8 @@ test.beforeAll(async () => {
     OC_WEB_DIR: DIST,
     // The 50 MB fixture is over the 20 MB default document limit.
     OC_MAX_DOC_MB: "128",
-    OC_LOG: "warn",
+    ...(REOPEN ? { OC_ROOM_IDLE_MS: process.env.OC_ROOM_IDLE_MS ?? "1500" } : {}),
+    OC_LOG: process.env.OC_LOG ?? "warn",
   };
   delete env.OC_DEV;
   // OC_BIN: a server binary kept aside (a shared CARGO_TARGET_DIR can be rebuilt by another tree).
@@ -124,6 +134,7 @@ test.beforeAll(async () => {
 
 test.afterAll(() => {
   for (const c of children) c.kill();
+  if (process.env.OC_LOG) console.log(`server log: ${path.join(work, "logs.txt")}`);
 });
 
 test("first screen, heap, initial JS and long frames per fixture", async ({ browser }) => {
@@ -132,15 +143,25 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
   for (const fx of FIXTURES) {
     const runs: Record<string, unknown>[] = [];
     for (let i = 0; i < RUNS; i++) {
-      const fileId = `${fx}_b${Date.now() % 1e8}_${i}`;
+      const fileId = REOPEN ? `${fx}_r${STAMP}` : `${fx}_b${Date.now() % 1e8}_${i}`;
       const ctx = await browser.newContext({ viewport: PROFILE.viewport });
       const page = await ctx.newPage();
       await page.addInitScript(() => {
-        const w = window as unknown as { __loaf: { start: number; duration: number; blocking: number }[] };
+        type Loaf = { start: number; duration: number; blocking: number; layout: number; scripts: [string, number][] };
+        const w = window as unknown as { __loaf: Loaf[] };
         w.__loaf = [];
         try {
           new PerformanceObserver((l) => {
-            for (const e of l.getEntries()) w.__loaf.push({ start: e.startTime, duration: e.duration, blocking: (e as unknown as { blockingDuration?: number }).blockingDuration ?? 0 });
+            for (const e of l.getEntries()) {
+              // Where a long frame went: style and layout at its end, and its longest scripts.
+              const f = e as unknown as { blockingDuration?: number; styleAndLayoutStart?: number; scripts?: { duration: number; invoker?: string; sourceFunctionName?: string; sourceURL?: string }[] };
+              const layout = f.styleAndLayoutStart ? e.startTime + e.duration - f.styleAndLayoutStart : 0;
+              const scripts = (f.scripts ?? [])
+                .map((x): [string, number] => [`${x.invoker ?? ""} ${x.sourceFunctionName ?? ""} ${(x.sourceURL ?? "").split("/").pop()}`.trim(), Math.round(x.duration)])
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3);
+              w.__loaf.push({ start: e.startTime, duration: e.duration, blocking: f.blockingDuration ?? 0, layout: Math.round(layout), scripts });
+            }
           }).observe({ type: "long-animation-frame", buffered: true });
         } catch {
           /* no LoAF in this browser */
@@ -201,7 +222,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
         painted = true;
         run.firstScreenMs = Math.round((await h.jsonValue()) as number);
         if (profiling) {
-          type Node = { id: number; callFrame: { functionName: string; url: string; lineNumber: number }; hitCount?: number };
+          type Node = { id: number; callFrame: { functionName: string; url: string; lineNumber: number }; hitCount?: number; children?: number[] };
           const { profile } = (await cdp.send("Profiler.stop")) as { profile: { nodes: Node[]; samples: number[]; timeDeltas: number[] } };
           const self = new Map<number, number>();
           profile.samples.forEach((id, k) => self.set(id, (self.get(id) ?? 0) + (profile.timeDeltas[k] ?? 0)));
@@ -212,6 +233,22 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
           }
           const top = [...byFn].sort((a, b) => b[1] - a[1]).slice(0, 40);
           for (const [f, us] of top) console.log(`profile ${Math.round(us / 1000)} ms  ${f}`);
+          // Inclusive time (a function and everything it called), for where a long task went.
+          const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+          const incl = new Map<number, number>();
+          const total = (id: number): number => {
+            if (incl.has(id)) return incl.get(id)!;
+            const n = byId.get(id)!;
+            const t = (self.get(id) ?? 0) + (n.children ?? []).reduce((a, c) => a + total(c), 0);
+            incl.set(id, t);
+            return t;
+          };
+          const inclFn = new Map<string, number>();
+          for (const n of profile.nodes) {
+            const f = `${n.callFrame.functionName || "(anon)"} ${n.callFrame.url.split("/").pop()}:${n.callFrame.lineNumber}`;
+            inclFn.set(f, Math.max(inclFn.get(f) ?? 0, total(n.id)));
+          }
+          for (const [f, us] of [...inclFn].sort((a, b) => b[1] - a[1]).slice(0, 60)) console.log(`incl ${Math.round(us / 1000)} ms  ${f}`);
         }
         // Settle: let the rest of the document arrive and render before measuring memory.
         await page.waitForTimeout(0);
@@ -238,7 +275,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
         }
         // How far the page scrolled (the editor may scroll inside a container).
         run.scrolledPx = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll("*")].map((e) => e.scrollTop)));
-        const loaf = await page.evaluate(() => (window as unknown as { __loaf: { start: number; duration: number; blocking: number }[] }).__loaf);
+        const loaf = await page.evaluate(() => (window as unknown as { __loaf: { start: number; duration: number; blocking: number; layout: number; scripts: [string, number][] }[] }).__loaf);
         const summary = (l: { duration: number; blocking: number }[]) => ({
           count: l.length,
           totalMs: Math.round(l.reduce((a, b) => a + b.duration, 0)),
@@ -246,6 +283,10 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
           worstMs: Math.round(Math.max(0, ...l.map((e) => e.duration))),
         });
         run.longFrames = { load: summary(loaf.slice(0, loadLoaf)), scroll: summary(loaf.filter((e) => e.start >= t0)) };
+        // The worst frame before the first screen: its style and layout, and its longest scripts.
+        const before = loaf.slice(0, loadLoaf).filter((e) => e.start < (run.firstScreenMs as number));
+        const worst = before.sort((a, b) => b.duration - a.duration)[0];
+        if (worst) run.worstLoadFrame = { at: Math.round(worst.start), ms: Math.round(worst.duration), layoutMs: worst.layout, scripts: worst.scripts };
         run.parts = await page.evaluate(() => {
           const views = [...document.querySelectorAll("[data-db], [data-board]")];
           return { views: views.length, shown: views.filter((v) => !v.querySelector(".bskel")).length };
@@ -261,6 +302,15 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
       console.log(`${fx} #${i + 1}: ${JSON.stringify(run)}`);
       runs.push(run);
       await ctx.close();
+      // A reopen starts once the room has closed (the server lists no live room).
+      if (REOPEN) {
+        const t = Date.now();
+        while (Date.now() - t < 180_000) {
+          const r = (await (await fetch(`${OC}/readyz`)).json().catch(() => ({}))) as { rooms?: number };
+          if (r.rooms === 0) break;
+          await new Promise((res) => setTimeout(res, 250));
+        }
+      }
     }
     const num = (k: string) => runs.map((r) => r[k] as number);
     results[fx] = {
@@ -281,7 +331,7 @@ test("first screen, heap, initial JS and long frames per fixture", async ({ brow
   const commit = execSync("git rev-parse --short HEAD", { cwd: ROOT, encoding: "utf8" }).trim();
   const date = new Date().toISOString().slice(0, 10);
   const browserVersion = browser.version();
-  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}${PARTIAL ? "-partial" : ""}.json`);
+  const out = path.join(ROOT, `bench/results/${date}-browser-${MACHINE}${PARTIAL ? "-partial" : WHOLE ? "-whole" : ""}${REOPEN ? "-reopen" : ""}.json`);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(
     out,

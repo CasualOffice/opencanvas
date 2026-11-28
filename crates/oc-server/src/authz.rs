@@ -361,6 +361,7 @@ impl Principal {
         };
         Ok(Grant {
             ext_blocks: false,
+            links_caps: false,
             subdoc: false,
             live: Default::default(),
             wopi_history: None,

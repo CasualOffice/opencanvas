@@ -1,0 +1,319 @@
+{
+  "scenario": "BROWSER",
+  "date": "2026-11-28",
+  "commit": "e26b82f",
+  "machine": "local-psync2",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "browser": "Chromium 159.0.8154.6",
+  "profile": {
+    "cpuThrottle": 4,
+    "downMbit": 40,
+    "upMbit": 40,
+    "rttMs": 40,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "note": "CDP network emulation shapes HTTP; WebSocket frames are not throttled"
+  },
+  "serverEnv": {
+    "OC_MAX_DOC_MB": "128"
+  },
+  "store": "sqlite",
+  "runsPerFixture": 6,
+  "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
+  "initialJs": {
+    "gzipBytes": 299382,
+    "budgetKb": 300,
+    "files": [
+      {
+        "file": "assets/tiptap-BRiPvsLK.js",
+        "gzipBytes": 128469
+      },
+      {
+        "file": "assets/index-L57qpdVE.js",
+        "gzipBytes": 70689
+      },
+      {
+        "file": "assets/react-C_qLde8i.js",
+        "gzipBytes": 68537
+      },
+      {
+        "file": "assets/yjs-DYXjVKFe.js",
+        "gzipBytes": 30157
+      },
+      {
+        "file": "assets/ui-BP7YDbO-.js",
+        "gzipBytes": 1530
+      }
+    ],
+    "forbidden": [],
+    "strayPreloads": []
+  },
+  "fixtures": {
+    "50mb": {
+      "firstScreenMs": {
+        "median": 1335,
+        "worst": 3298
+      },
+      "heapMb": 15,
+      "domNodes": 6231,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "50mb_r70196781",
+          "firstScreenMs": 3298,
+          "heapMb": 16.2,
+          "domNodes": 6245,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 652,
+            "firstFrame": 1389,
+            "mainSynced": 1667
+          },
+          "partsListed": 35,
+          "scrolledPx": 17904,
+          "longFrames": {
+            "load": {
+              "count": 21,
+              "totalMs": 8729,
+              "blockingMs": 7237,
+              "worstMs": 1672
+            },
+            "scroll": {
+              "count": 24,
+              "totalMs": 5955,
+              "blockingMs": 4364,
+              "worstMs": 615
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.2
+          }
+        },
+        {
+          "fileId": "50mb_r70196781",
+          "firstScreenMs": 1606,
+          "heapMb": 15.2,
+          "domNodes": 6249,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 384,
+            "firstFrame": 426,
+            "mainSynced": 790
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 9,
+              "totalMs": 2579,
+              "blockingMs": 1903,
+              "worstMs": 860
+            },
+            "scroll": {
+              "count": 7,
+              "totalMs": 1527,
+              "blockingMs": 862,
+              "worstMs": 408
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.2
+          }
+        },
+        {
+          "fileId": "50mb_r70196781",
+          "firstScreenMs": 1359,
+          "heapMb": 15.2,
+          "domNodes": 6249,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 327,
+            "firstFrame": 372,
+            "mainSynced": 711
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 9,
+              "totalMs": 2619,
+              "blockingMs": 1948,
+              "worstMs": 692
+            },
+            "scroll": {
+              "count": 9,
+              "totalMs": 1775,
+              "blockingMs": 1125,
+              "worstMs": 558
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.2
+          }
+        },
+        {
+          "fileId": "50mb_r70196781",
+          "firstScreenMs": 1335,
+          "heapMb": 15,
+          "domNodes": 6230,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 329,
+            "firstFrame": 374,
+            "mainSynced": 718
+          },
+          "partsListed": 35,
+          "scrolledPx": 17904,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 1806,
+              "blockingMs": 1341,
+              "worstMs": 656
+            },
+            "scroll": {
+              "count": 5,
+              "totalMs": 1081,
+              "blockingMs": 610,
+              "worstMs": 302
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.2
+          }
+        },
+        {
+          "fileId": "50mb_r70196781",
+          "firstScreenMs": 1244,
+          "heapMb": 15,
+          "domNodes": 6231,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 325,
+            "firstFrame": 369,
+            "mainSynced": 701
+          },
+          "partsListed": 35,
+          "scrolledPx": 17904,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 1614,
+              "blockingMs": 1123,
+              "worstMs": 575
+            },
+            "scroll": {
+              "count": 7,
+              "totalMs": 1257,
+              "blockingMs": 670,
+              "worstMs": 322
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.2
+          }
+        },
+        {
+          "fileId": "50mb_r70196781",
+          "firstScreenMs": 1267,
+          "heapMb": 15,
+          "domNodes": 6230,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 327,
+            "firstFrame": 371,
+            "mainSynced": 706
+          },
+          "partsListed": 35,
+          "scrolledPx": 17904,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 1699,
+              "blockingMs": 1218,
+              "worstMs": 595
+            },
+            "scroll": {
+              "count": 8,
+              "totalMs": 1394,
+              "blockingMs": 808,
+              "worstMs": 350
+            }
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302.3,
+            "decodedKb": 966.2
+          }
+        }
+      ]
+    }
+  }
+}

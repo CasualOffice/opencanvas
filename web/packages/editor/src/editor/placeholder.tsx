@@ -22,7 +22,9 @@ export interface PhInfo {
   view?: string;
 }
 
-const fmt = (n: number) => n.toLocaleString("en-US");
+/** 12,345: grouped by hand (the first `toLocaleString` loads the locale data, 20-35 ms of the
+ *  first screen under a 4x throttle, PSYNC-BUG-3). */
+export const fmt = (n: number) => String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
 function useOnline() {
   const [on, setOn] = useState(typeof navigator === "undefined" || navigator.onLine !== false);

@@ -24,8 +24,10 @@ afterEach(() => {
   while (editors.length) editors.pop()!.destroy();
 });
 
-/** Lets the editor's queued id assignment (a microtask after load or a remote change) run. */
-const settle = () => new Promise<void>((r) => queueMicrotask(r));
+/** Lets the editor's queued id assignment run: when the browser is idle after load or a remote
+ *  change (PSYNC-BUG-3: not inside the first screen's frame; jsdom has no requestIdleCallback,
+ *  so a 16 ms timer). */
+const settle = () => new Promise<void>((r) => setTimeout(r, 40));
 
 function mount(doc: Y.Doc, opts: { editable?: boolean; ext?: Extension } = {}) {
   const e = new Editor({

@@ -288,6 +288,10 @@ impl<'a> Writer<'a> {
                     &format!("@{}", attr_str(n, "label")),
                     &Self::rpr(&[], Ctx { bold: true, ..ctx }, false),
                 )),
+                "canvasLink" => out.push_str(&Self::run(
+                    attr_str(n, "label"),
+                    &Self::rpr(&[], ctx, false),
+                )),
                 "dateMention" => out.push_str(&Self::run(
                     &crate::export::date_text(attr_str(n, "date")),
                     &Self::rpr(&[], ctx, false),

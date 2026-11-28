@@ -19,8 +19,10 @@ use crate::crypto::{self, Kek};
 use crate::grant::{Grant, Role};
 
 mod automation;
+mod links;
 mod webhooks;
 pub use automation::{RunRow, ScheduleRow};
+pub use links::LinkRow;
 pub use webhooks::{WebhookRow, WebhookState};
 
 /// RLB-03: how far a restore raises the offline generations above the highest in the backup.

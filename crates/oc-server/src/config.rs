@@ -97,6 +97,10 @@ pub struct RoomConfig {
     pub part_evict: Duration,
     /// PSYNC-02: a whole view goes back to parts after this without server work (20 s).
     pub whole_release: Duration,
+    /// PSYNC-BUG-2: a split room this large (its stored state, bytes) keeps its split when it
+    /// closes clean, for a fast reopen (`OC_KEEP_SPLIT_MIN_BYTES`, default 4 MiB; smaller
+    /// canvases cut in milliseconds and are purged as before).
+    pub keep_split_min_bytes: usize,
     pub autosave_debounce: Duration,
     pub autosave_max: Duration,
     /// A room with no peers (and nothing unsaved) for this long is dropped from memory.
@@ -124,6 +128,7 @@ impl Default for RoomConfig {
         Self {
             part_evict: Duration::from_secs(30),
             whole_release: Duration::from_secs(20),
+            keep_split_min_bytes: 4 * 1024 * 1024,
             autosave_debounce: Duration::from_millis(2000),
             autosave_max: Duration::from_millis(10_000),
             room_ttl: DEFAULT_ROOM_IDLE,
@@ -252,6 +257,7 @@ impl Config {
                 max_frame_bytes: num("OC_MAX_FRAME_KB", 1024) as usize * 1024,
                 max_doc_bytes: num("OC_MAX_DOC_MB", 20) as usize * 1024 * 1024,
                 heartbeat: Duration::from_millis(num("OC_HEARTBEAT_MS", 10_000).max(1000)),
+                keep_split_min_bytes: num("OC_KEEP_SPLIT_MIN_BYTES", 4 * 1024 * 1024) as usize,
                 max_peers: max_peers(var("OC_MAX_PEERS").as_deref()),
                 ..d
             },

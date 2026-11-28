@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-28",
+  "machine": "Apple M4, local, other agents' builds running (background load)",
+  "build": "release (cargo test --release -p oc-server --test links -- --ignored bench_)",
+  "host_stub": "in-process mock host, /access and /access/batch answer after 20 ms",
+  "readers": "a new person each run (no cached access answers)",
+  "runs": 20,
+  "LINK-A4": {
+    "scenario": "backlinks of a canvas with 500 linking canvases, first page of 20 with excerpts",
+    "p95_ms_access_batch": 56.9,
+    "p95_ms_per_file_access": 1475.4,
+    "pass": "< 300 ms with /access/batch, < 1500 ms per file",
+    "result": "pass (per-file close to the limit: 500 calls at 8 in flight and 20 ms is 1.25 s at best)"
+  },
+  "GRAPH-A2": {
+    "scenario": "local graph, depth 2, 500 edges (root -> 25 -> 19 each), limit 500",
+    "p95_ms_access_batch": 112.4,
+    "pass": "< 250 ms",
+    "result": "pass"
+  },
+  "debug_build_first": "debug build before the changes in this commit: LINK-A4 301 ms / 3.5 s, GRAPH-A2 611 ms; the changes (batch chunks in parallel, a sliding window of 8 for per-file /access and excerpts, one index query per graph level) were made after it"
+}

@@ -258,6 +258,7 @@ impl FileInfo {
         let role = self.role();
         Grant {
             ext_blocks: false,
+            links_caps: false,
             subdoc: false,
             live: Default::default(),
             wopi_history: Some(crate::grant::WopiHistory {

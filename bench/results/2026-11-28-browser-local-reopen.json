@@ -1,0 +1,409 @@
+{
+  "scenario": "BROWSER",
+  "date": "2026-11-28",
+  "commit": "87a89b6",
+  "machine": "local",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "browser": "Chromium 159.0.8154.6",
+  "profile": {
+    "cpuThrottle": 4,
+    "downMbit": 40,
+    "upMbit": 40,
+    "rttMs": 40,
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "note": "CDP network emulation shapes HTTP; WebSocket frames are not throttled"
+  },
+  "serverEnv": {
+    "OC_MAX_DOC_MB": "128"
+  },
+  "store": "sqlite",
+  "runsPerFixture": 6,
+  "load": "one editor per run, a fresh file id each run (the room loads the fixture from the host)",
+  "initialJs": {
+    "gzipBytes": 299073,
+    "budgetKb": 300,
+    "files": [
+      {
+        "file": "assets/tiptap-BRiPvsLK.js",
+        "gzipBytes": 128469
+      },
+      {
+        "file": "assets/index-LrVZtxO2.js",
+        "gzipBytes": 70380
+      },
+      {
+        "file": "assets/react-C_qLde8i.js",
+        "gzipBytes": 68537
+      },
+      {
+        "file": "assets/yjs-DYXjVKFe.js",
+        "gzipBytes": 30157
+      },
+      {
+        "file": "assets/ui-BP7YDbO-.js",
+        "gzipBytes": 1530
+      }
+    ],
+    "forbidden": [],
+    "strayPreloads": []
+  },
+  "fixtures": {
+    "50mb": {
+      "firstScreenMs": {
+        "median": 1983,
+        "worst": 3246
+      },
+      "heapMb": 12.8,
+      "domNodes": 6214,
+      "errors": 0,
+      "runs": [
+        {
+          "fileId": "50mb_r73564032",
+          "firstScreenMs": 3246,
+          "heapMb": 12.9,
+          "domNodes": 6248,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 676,
+            "firstFrame": 2061,
+            "mainSynced": 2379
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 14,
+              "totalMs": 3380,
+              "blockingMs": 2363,
+              "worstMs": 918
+            },
+            "scroll": {
+              "count": 38,
+              "totalMs": 7432,
+              "blockingMs": 4768,
+              "worstMs": 479
+            }
+          },
+          "worstLoadFrame": {
+            "at": 2367,
+            "ms": 918,
+            "layoutMs": 38,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                846
+              ],
+              [
+                "FrameRequestCallback",
+                30
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_r73564032",
+          "firstScreenMs": 2094,
+          "heapMb": 12.7,
+          "domNodes": 6214,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 530,
+            "firstFrame": 576,
+            "mainSynced": 1015
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 2904,
+              "blockingMs": 2205,
+              "worstMs": 1150
+            },
+            "scroll": {
+              "count": 9,
+              "totalMs": 2765,
+              "blockingMs": 2045,
+              "worstMs": 776
+            }
+          },
+          "worstLoadFrame": {
+            "at": 999,
+            "ms": 1150,
+            "layoutMs": 53,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                1055
+              ],
+              [
+                "FrameRequestCallback",
+                38
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_r73564032",
+          "firstScreenMs": 1874,
+          "heapMb": 12.8,
+          "domNodes": 6214,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 480,
+            "firstFrame": 520,
+            "mainSynced": 943
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 2522,
+              "blockingMs": 1851,
+              "worstMs": 994
+            },
+            "scroll": {
+              "count": 8,
+              "totalMs": 3111,
+              "blockingMs": 2405,
+              "worstMs": 808
+            }
+          },
+          "worstLoadFrame": {
+            "at": 927,
+            "ms": 994,
+            "layoutMs": 45,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                910
+              ],
+              [
+                "FrameRequestCallback",
+                34
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_r73564032",
+          "firstScreenMs": 1983,
+          "heapMb": 12.8,
+          "domNodes": 6214,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 536,
+            "firstFrame": 577,
+            "mainSynced": 1017
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 2614,
+              "blockingMs": 1940,
+              "worstMs": 1029
+            },
+            "scroll": {
+              "count": 8,
+              "totalMs": 2739,
+              "blockingMs": 2202,
+              "worstMs": 766
+            }
+          },
+          "worstLoadFrame": {
+            "at": 1002,
+            "ms": 1029,
+            "layoutMs": 46,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                949
+              ],
+              [
+                "FrameRequestCallback",
+                31
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_r73564032",
+          "firstScreenMs": 2142,
+          "heapMb": 12.8,
+          "domNodes": 6214,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 558,
+            "firstFrame": 601,
+            "mainSynced": 1055
+          },
+          "partsListed": 35,
+          "scrolledPx": 17904,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 2886,
+              "blockingMs": 2167,
+              "worstMs": 1155
+            },
+            "scroll": {
+              "count": 9,
+              "totalMs": 2655,
+              "blockingMs": 2023,
+              "worstMs": 685
+            }
+          },
+          "worstLoadFrame": {
+            "at": 1038,
+            "ms": 1155,
+            "layoutMs": 49,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                1063
+              ],
+              [
+                "FrameRequestCallback",
+                37
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        },
+        {
+          "fileId": "50mb_r73564032",
+          "firstScreenMs": 1866,
+          "heapMb": 12.8,
+          "domNodes": 6214,
+          "partsBeforeScroll": {
+            "views": 35,
+            "shown": 0
+          },
+          "subFramesBeforeFirstScreen": 0,
+          "wsMs": {
+            "open": 493,
+            "firstFrame": 534,
+            "mainSynced": 947
+          },
+          "partsListed": 35,
+          "scrolledPx": 17903,
+          "longFrames": {
+            "load": {
+              "count": 8,
+              "totalMs": 2468,
+              "blockingMs": 1830,
+              "worstMs": 976
+            },
+            "scroll": {
+              "count": 7,
+              "totalMs": 2094,
+              "blockingMs": 1596,
+              "worstMs": 629
+            }
+          },
+          "worstLoadFrame": {
+            "at": 933,
+            "ms": 976,
+            "layoutMs": 42,
+            "scripts": [
+              [
+                "MessagePort.onmessage T react-C_qLde8i.js",
+                897
+              ],
+              [
+                "FrameRequestCallback",
+                33
+              ]
+            ]
+          },
+          "parts": {
+            "views": 38,
+            "shown": 6
+          },
+          "js": {
+            "requests": 5,
+            "transferKb": 302,
+            "decodedKb": 964.9
+          }
+        }
+      ]
+    }
+  }
+}

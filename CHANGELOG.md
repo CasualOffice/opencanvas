@@ -7,6 +7,14 @@ each change are in the integration log of [the tracker](docs/10-EXECUTION-TRACKE
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-28
+
+Partial sync completed: spreadsheets load as parts, the session answers before a large file has
+opened, a clean close keeps a large canvas split for a fast reopen (50 MB reopen about 2 s), the
+editor renders a canvas once on open, and the client-id rule refuses only foreign clocks. Also the
+v0.5 links and backlinks preview (off unless the host enables links) and whiteboard bug fixes.
+No configuration changes; migration 0014 (link edges) runs at start-up.
+
 ### Fixed
 
 - Whiteboard: a sticky note or text placed with the mouse takes typing at once. Before, its editor
@@ -55,6 +63,34 @@ migrations or configuration changes.
 - Timeline (DB5-01): drag a task to another person's row in Workload to reassign it; Weeks and
   Months grouping on phones; the frame 6b "Jump to" panel when the visible range is empty;
   Timeline and Workload variants in the insert menu (`/timeline`, `/gantt`, `/workload`).
+- Links between canvases (LINK-01..03, ADR-081; off until a host sets `[host.flags] links`): a
+  `canvasLink` node links a canvas, a block or a row; the server keeps a link index of ids only
+  (`link_edges`, migration 0014, SQLite, MySQL and MariaDB), written only after the host
+  acknowledged a save. `GET /api/v1/files/{fileId}/backlinks` and the MCP tool
+  `canvas_backlinks` list the canvases that link to one, with the sentence around each link,
+  checked with the host's new optional `POST /access/batch` (else `POST /access` per file):
+  canvases the reader cannot open are left out and not counted. Backfill with
+  `POST /api/v1/links/index`, drop a deleted file's links with `DELETE /api/v1/links/files/{id}`.
+  Exports write canvas links as links to `[host.links] url_template`. Both API clients have the
+  new operations. Redis-only storage refuses `links = true`.
+- The link graph (GRAPH-01, ADR-082): `GET /api/v1/graph` and the MCP tool `canvas_graph` answer
+  the canvases around one canvas (depth 1-3) or the most-connected canvases, with every canvas
+  checked with the host before it is shown or expanded, so a canvas the reader cannot open never
+  connects two others. 30 s cache per person, 10 a minute (2 full).
+- Links in the editor (LINK-01/04/05, to the approved prototype; with `[host.flags] links`): type
+  `[[` to link a canvas from the host's search and your recent canvases, `#` to link one of its
+  headings, databases or rows, or paste one of the host's URLs. Links show the canvas's current
+  title, and "No access", a struck-through deleted canvas or a missing block when that is so.
+  Resting on a link (or Space on a selected one) previews it. Every canvas ends with "Linked
+  from": the canvases that link here, grouped, with the sentence around each link, filters by
+  kind and block, and only canvases you can open; headings with backlinks get a "Linked from"
+  chip that opens the side panel on that heading. "Unlinked mentions" lists canvases that name
+  this one without a link, with Link (as you, in that canvas) and Undo. All of it loads on its
+  own after the canvas (initial JS +0.6 KB for the node).
+- "Linked from" in the top bar's More options menu, and a Comments / Linked from tab row in the
+  side panel. A canvas's `meta.aliases` (other names) is included in `search.json` and in the
+  search for unlinked mentions. Editors older than 0.5 can no longer delete canvas links: their
+  update is refused and they are asked to reopen the canvas.
 
 ### Fixed
 
@@ -79,6 +115,24 @@ migrations or configuration changes.
 ### Verified
 
 - The crash drill with a slow host passes at full size on MySQL 8.4 as well as SQLite.
+### Changed
+
+- The editor renders a canvas once when it opens, not twice, and gives blocks without ids their
+  ids after the first screen: the editor's mount after the document arrives is 35-43% shorter
+  (PSYNC-BUG-3).
+- Partial sync: a canvas reopened at the version it was saved at opens from the room's kept
+  split instead of reading and cutting the file again (the 50 MB benchmark canvas: 1.3 s to its
+  first screen on a reopen), and the session no longer waits for a large file to be read
+  (`isNew` can be `null`; the room says it on the socket). PSYNC-BUG-2.
+- Partial sync: spreadsheets load as their own parts, as databases and boards do, so a canvas
+  with large spreadsheets opens faster. Charts of a spreadsheet follow its part. Reload any
+  editor tab left open across the upgrade (PSYNC-05).
+
+### Fixed
+
+- Partial sync: the one-client-id-per-document rule now refuses only items at clocks another
+  document was given. An editor that loaded a database during server work had its sync reply
+  refused (PSYNC-BUG-4).
 
 ## [0.4.0] - 2026-11-28
 
@@ -721,7 +775,8 @@ SLA. Release notes, known limitations, backup and recovery:
 - HTML export is sanitised and served with a sandbox CSP; imported HTML drops scripts, event
   handlers and `javascript:` links.
 
-[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/CasualOffice/opencanvas/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/CasualOffice/opencanvas/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/CasualOffice/opencanvas/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/CasualOffice/opencanvas/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/CasualOffice/opencanvas/compare/v0.2.1...v0.3.0

@@ -131,7 +131,7 @@ async fn client(
             continue;
         }
         let url = format!(
-            "{}/v1/collab/{room_id}?ticket={ticket}&caps=ext,live,subdoc",
+            "{}/v1/collab/{room_id}?ticket={ticket}&caps=ext,live,subdoc,links",
             sh.cfg.ws_base[node]
         );
         let mut ws = match tokio::time::timeout(
@@ -297,7 +297,7 @@ async fn viewer(
     let t = Instant::now();
     let (ticket, room_id) = launch(sh, &sh.cfg.http_base[node], idx, room, false).await?;
     let url = format!(
-        "{}/v1/collab/{room_id}?ticket={ticket}&caps=ext,live,subdoc",
+        "{}/v1/collab/{room_id}?ticket={ticket}&caps=ext,live,subdoc,links",
         sh.cfg.ws_base[node]
     );
     // Like the editor: a 503 upgrade (rooms recovering) is retried after its Retry-After, for

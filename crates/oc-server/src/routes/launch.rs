@@ -469,6 +469,9 @@ pub(crate) fn ws_url(state: &SharedState, headers: &HeaderMap) -> String {
     format!("{}://{host}/v1/collab", if secure { "wss" } else { "ws" })
 }
 
+/// How long the session answer waits for its room to open (PSYNC-BUG-2).
+const SESSION_ROOM_WAIT: std::time::Duration = std::time::Duration::from_millis(250);
+
 pub async fn session_info(
     State(state): State<SharedState>,
     Path(ticket): Path<String>,
@@ -482,11 +485,19 @@ pub async fn session_info(
         .await
         .map_err(ApiError::internal)?
         .map(|(_, exp)| exp);
-    let info = state
-        .rooms
-        .info(&host, &grant)
-        .await
-        .map_err(ApiError::host)?;
+    // PSYNC-BUG-2: the room starts opening here, but the session does not wait for a large
+    // canvas to be read and cut: after SESSION_ROOM_WAIT the editor gets its session (and opens
+    // the socket, which waits for the room), and learns `isNew` from the room's `room` control
+    // message on join. A small canvas and a host error answer within the wait, as before.
+    let opening = {
+        let (rooms, host, grant) = (state.rooms.clone(), host.clone(), grant.clone());
+        tokio::spawn(async move { rooms.info(&host, &grant).await })
+    };
+    let is_new = match tokio::time::timeout(SESSION_ROOM_WAIT, opening).await {
+        Ok(Ok(info)) => Some(info.map_err(ApiError::host)?.is_new),
+        Ok(Err(e)) => return Err(ApiError::internal(e)),
+        Err(_) => None,
+    };
     state
         .tickets
         .lock()
@@ -543,6 +554,8 @@ pub async fn session_info(
         "templates": {"team": host.team_templates()},
         // SRCH-04 (ADR-065): "Search all canvases" only when the host has the callback.
         "search": {"enabled": state.search_probe.available(&host)},
+        // LINK-04 (ADR-081): `[[`, Linked from, previews and the URL patterns of pasted links.
+        "links": crate::links::session_json(&state, &host),
         // AUTO-06 (ADR-067): the automation panel; `canEdit` = edit access and perms.automate.
         "automation": {
             "enabled": crate::automation::AutomationCfg::of(&host).enabled,
@@ -574,7 +587,7 @@ pub async fn session_info(
         // BSDK-01: the SDK block packages this host enables (type, version, schemas, bundle URL
         // on the block origin and its integrity); empty when none.
         "blocks": state.blocks.for_host(&host),
-        "isNew": info.is_new,
+        "isNew": is_new,
         "wsUrl": ws_url(&state, &headers),
         "exp": exp,
         // LIVE-03 (ADR-069/070): whether live blocks show, and whether "Make live" may (the host
