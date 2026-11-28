@@ -9,6 +9,7 @@
 //! converge, and a reference to a deleted row or column reads `#REF!`.
 
 pub mod block;
+mod deps;
 pub mod engine;
 pub mod refs;
 

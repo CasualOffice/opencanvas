@@ -9,7 +9,9 @@
 //! ```
 //!
 //! The sheet: A = n, B = `=A{n}*2` on every row, and C1 = `=SUM(B1:B100000)` (200,001 cells).
-//! The edit sets A50000, which changes B50000 and C1.
+//! The edit sets A50000, which changes B50000 and C1. The first edit also builds the dependency
+//! graphs (opencalc's and the block's, kept from then on); the next edit, A50001, shows the cost
+//! of an edit after that.
 
 use std::time::Instant;
 
@@ -72,13 +74,26 @@ fn one_hundred_thousand_rows() {
             ("r49999".into(), "c1".into(), "2000000".into()),
         ]
     );
+
+    let t = Instant::now();
+    let changed = book.set("s", "r50000", "c0", "0").unwrap();
+    let next = t.elapsed();
+    assert_eq!(changed.len(), 3, "{changed:?}");
+    let total = after - 50_000 * 2;
+    assert!(
+        changed
+            .iter()
+            .any(|v| v.row == "r0" && v.text == total.to_string())
+    );
     println!(
-        "bench_100k: rows={ROWS} cells={} open_ms={} edit_ms={}",
+        "bench_100k: rows={ROWS} cells={} open_ms={} edit_ms={} next_edit_ms={}",
         2 * ROWS + 1,
         open.as_millis(),
-        edit.as_millis()
+        edit.as_millis(),
+        next.as_millis()
     );
     // Budgets (SHEET-08): far above the measured numbers, far below linear lookups'.
     assert!(open.as_secs() < 30, "open took {open:?}");
     assert!(edit.as_secs() < 3, "one edit took {edit:?}");
+    assert!(next.as_millis() < 500, "the next edit took {next:?}");
 }
