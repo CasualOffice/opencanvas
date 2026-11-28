@@ -1007,3 +1007,129 @@ async fn an_editor_older_than_0_5_cannot_delete_canvas_links() {
     })
     .await;
 }
+
+/// p95 of `n` timed runs of `f(i)`.
+async fn p95<F, Fut>(n: usize, mut f: F) -> std::time::Duration
+where
+    F: FnMut(usize) -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
+    let mut t = vec![];
+    for i in 0..n {
+        let at = std::time::Instant::now();
+        f(i).await;
+        t.push(at.elapsed());
+    }
+    t.sort();
+    t[(n * 95).div_ceil(100) - 1]
+}
+
+/// LINK-A4 (benchmark, run once: `cargo test --test links -- --ignored --nocapture bench_`):
+/// backlinks of a canvas with 500 linking canvases, the host answering access in 20 ms, a new
+/// reader each run (nothing cached). Pass: p95 < 300 ms with `/access/batch`, < 1.5 s per file.
+#[tokio::test]
+#[ignore]
+async fn bench_backlinks_500_sources() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        h.access_delay_ms = 20;
+        h.access = Some(
+            (0..40)
+                .map(|i| (format!("u_b{i}"), "view".to_string()))
+                .collect(),
+        );
+        for i in 0..20 {
+            h.files
+                .insert(format!("s_{i}"), (ocanvas(&source("Plan", "See ", "")), 1));
+        }
+    }
+    for i in 0..500 {
+        st.store
+            .links_replace(
+                "sample",
+                &format!("s_{i}"),
+                &[edge_to(TARGET, oc_model::links::Kind::Link)],
+                i,
+            )
+            .await
+            .unwrap();
+    }
+    let run = |user: String| {
+        let addr = addr.clone();
+        async move {
+            let (s, v) = get_json(
+                format!("http://{addr}/api/v1/files/{TARGET}/backlinks"),
+                &api_token(&user),
+            )
+            .await;
+            assert_eq!(s, 200, "{v}");
+            assert_eq!(v["total"], 500);
+        }
+    };
+    let batch = p95(20, |i| run(format!("u_b{i}"))).await;
+    host.lock().unwrap().access_batch_off = true;
+    let single = p95(20, |i| run(format!("u_b{}", 20 + i))).await;
+    eprintln!(
+        "LINK-A4: 500 sources, host 20 ms: p95 {batch:?} with /access/batch, {single:?} with per-file /access"
+    );
+    assert!(batch < std::time::Duration::from_millis(300), "{batch:?}");
+    assert!(
+        single < std::time::Duration::from_millis(1500),
+        "{single:?}"
+    );
+}
+
+/// GRAPH-A2 (benchmark, run once): a local graph at depth 2 over 500 edges, the host answering
+/// access in 20 ms, a new reader each run. Pass: p95 < 250 ms with `/access/batch`.
+#[tokio::test]
+#[ignore]
+async fn bench_local_graph_depth_2() {
+    let (addr, st, host, _db) = serve(on).await;
+    {
+        let mut h = host.lock().unwrap();
+        h.access_delay_ms = 20;
+        h.access = Some(
+            (0..20)
+                .map(|i| (format!("u_g{i}"), "view".to_string()))
+                .collect(),
+        );
+    }
+    // The root links to 25 canvases, each linking to 19 more: 500 edges, 501 canvases.
+    let mid: Vec<oc_model::links::Edge> = (0..25)
+        .map(|i| edge_to(&format!("m_{i}"), oc_model::links::Kind::Link))
+        .collect();
+    st.store
+        .links_replace("sample", "root", &mid, 1)
+        .await
+        .unwrap();
+    for i in 0..25 {
+        let leaves: Vec<oc_model::links::Edge> = (0..19)
+            .map(|j| edge_to(&format!("l_{i}_{j}"), oc_model::links::Kind::Link))
+            .collect();
+        st.store
+            .links_replace("sample", &format!("m_{i}"), &leaves, 2)
+            .await
+            .unwrap();
+    }
+    let t = p95(20, |i| {
+        let addr = addr.clone();
+        async move {
+            let (s, v) = get_json(
+                format!("http://{addr}/api/v1/graph?root=root&depth=2&limit=500"),
+                &api_token(&format!("u_g{i}")),
+            )
+            .await;
+            assert_eq!(s, 200, "{v}");
+            assert_eq!(
+                v["edges"].as_array().unwrap().len(),
+                499,
+                "{}",
+                v["truncated"]
+            );
+        }
+    })
+    .await;
+    eprintln!("GRAPH-A2: depth 2, 500 edges, host 20 ms: p95 {t:?} with /access/batch");
+    assert!(t < std::time::Duration::from_millis(250), "{t:?}");
+}

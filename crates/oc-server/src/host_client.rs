@@ -1098,11 +1098,17 @@ impl HostClient {
         }
         ask.sort();
         ask.dedup();
-        for chunk in ask.chunks(ACCESS_BATCH) {
+        // Chunks go out together: 500 files cost one round trip, not three (LINK-A4).
+        let chunks: Vec<&[String]> = ask.chunks(ACCESS_BATCH).collect();
+        let answers = futures::future::join_all(chunks.iter().map(|chunk| async move {
             let started = std::time::Instant::now();
             let r = self.access_batch_once(host, user_id, chunk).await;
             let result = r.as_ref().map_or_else(err_class, |_| "ok");
             self.record(host, "access_batch", result, started);
+            r
+        }))
+        .await;
+        for (chunk, r) in chunks.into_iter().zip(answers) {
             let Some(got) = r? else {
                 return Ok(None);
             };

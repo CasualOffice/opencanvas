@@ -254,20 +254,23 @@ async fn per_file(
     user_id: &str,
     files: &[String],
 ) -> Vec<(String, Option<AccessDetail>)> {
-    let mut out = Vec::with_capacity(files.len());
-    for chunk in files.chunks(FALLBACK_CONCURRENCY) {
-        // `None` (no `/access` at all) and errors both mean "not readable" (fail closed).
-        let got = futures::future::join_all(
-            chunk
-                .iter()
-                .map(|f| state.host.access_detail(host, f, user_id)),
-        )
-        .await;
-        for (f, a) in chunk.iter().zip(got) {
-            out.push((f.clone(), a.ok().flatten()));
+    // At most 8 in flight, a new one as soon as one answers (not in rounds of 8).
+    let gate = tokio::sync::Semaphore::new(FALLBACK_CONCURRENCY);
+    futures::future::join_all(files.iter().map(|f| {
+        let gate = &gate;
+        async move {
+            let _permit = gate.acquire().await.ok();
+            // `None` (no `/access` at all) and errors both mean "not readable" (fail closed).
+            let a = state
+                .host
+                .access_detail(host, f, user_id)
+                .await
+                .ok()
+                .flatten();
+            (f.clone(), a)
         }
-    }
-    out
+    }))
+    .await
 }
 
 /// A read-only grant for loading a source the reader can open (excerpts).
@@ -680,19 +683,21 @@ pub async fn backlinks(
     let total = listed.len();
     let page: Vec<&String> = listed.iter().skip(offset).take(limit).copied().collect();
     let cfg = LinksCfg::of(host);
-    let mut texts: Vec<Option<Arc<SourceText>>> = Vec::with_capacity(page.len());
-    for chunk in page.chunks(FALLBACK_CONCURRENCY) {
-        if !q.excerpts {
-            texts.extend(chunk.iter().map(|_| None));
-            continue;
-        }
-        let got = futures::future::join_all(chunk.iter().map(|f| {
+    // Excerpts: at most 8 source loads in flight, a new one as each finishes.
+    let gate = tokio::sync::Semaphore::new(FALLBACK_CONCURRENCY);
+    let texts: Vec<Option<Arc<SourceText>>> = if q.excerpts {
+        futures::future::join_all(page.iter().map(|f| {
             let saved = by_src[*f].first().map_or(0, |r| r.saved_at);
-            excerpt_source(state, host, reader, f, &access[*f], saved, &cfg.patterns)
+            let (gate, patterns, a) = (&gate, &cfg.patterns, &access[*f]);
+            async move {
+                let _permit = gate.acquire().await.ok();
+                excerpt_source(state, host, reader, f, a, saved, patterns).await
+            }
         }))
-        .await;
-        texts.extend(got);
-    }
+        .await
+    } else {
+        vec![None; page.len()]
+    };
     let mut items = vec![];
     for (f, text) in page.iter().zip(texts) {
         let a = &access[*f];

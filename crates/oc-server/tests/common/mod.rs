@@ -102,6 +102,8 @@ pub struct HostState {
     pub access_batch_fail: bool,
     /// LINK-03: (userId, fileIds, v2 signature ok) of every batch call.
     pub access_batch_calls: Vec<(String, Vec<String>, bool)>,
+    /// LINK-A4 / GRAPH-A2: `/access` and `/access/batch` wait this long (a host at 20 ms).
+    pub access_delay_ms: u64,
 }
 
 pub const PNG_1X1: [u8; 70] = [
@@ -358,6 +360,10 @@ async fn members(
 }
 
 async fn access(State(s): State<Shared>, headers: HeaderMap, body: Bytes) -> impl IntoResponse {
+    let delay = s.lock().unwrap().access_delay_ms;
+    if delay > 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
     let ok = verify_v2(&headers, "/api/access", &body);
     let v: Value = serde_json::from_slice(&body).unwrap_or_default();
     let (file, user) = (
@@ -416,6 +422,10 @@ async fn access_batch(
     headers: HeaderMap,
     body: Bytes,
 ) -> impl IntoResponse {
+    let delay = s.lock().unwrap().access_delay_ms;
+    if delay > 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
+    }
     let ok = verify_v2(&headers, "/api/access/batch", &body);
     let v: Value = serde_json::from_slice(&body).unwrap_or_default();
     let user = v["userId"].as_str().unwrap_or_default().to_string();

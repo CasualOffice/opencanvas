@@ -321,11 +321,11 @@ async fn local(
     let err = |e: anyhow::Error| LinkError::Internal(e.to_string());
     for _ in 0..p.depth {
         // Rows touching the frontier, both directions.
-        let mut rows = vec![];
-        for f in &frontier {
-            rows.extend(state.store.links_from(&host.id, f).await.map_err(err)?);
-            rows.extend(state.store.links_to(&host.id, f).await.map_err(err)?);
-        }
+        let rows = state
+            .store
+            .links_touching(&host.id, &frontier)
+            .await
+            .map_err(err)?;
         let rows: Vec<LinkRow> = rows.into_iter().filter(|r| b.keep(r)).collect();
         // New neighbours, checked before they join or are expanded.
         let mut fresh: Vec<String> = vec![];
@@ -338,8 +338,10 @@ async fn local(
         }
         checked.extend(fresh.iter().cloned());
         let mut next = vec![];
+        // One access call for the whole level (the client splits it into batches of 200).
+        let (ok_all, _gone) = crate::links::readable(state, host, reader, &fresh).await;
         for chunk in fresh.chunks(BATCH) {
-            let (ok, _gone) = crate::links::readable(state, host, reader, chunk).await;
+            let ok = &ok_all;
             for f in chunk {
                 if let Some(a) = ok.get(f) {
                     if b.nodes.len() >= p.limit {

@@ -146,6 +146,33 @@ impl Store {
         rows(rs)
     }
 
+    /// Edges leaving or reaching any of `files` (one graph level, GRAPH-01), in one query per
+    /// 200 files instead of two per file.
+    pub async fn links_touching(
+        &self,
+        host_id: &str,
+        files: &[String],
+    ) -> anyhow::Result<Vec<LinkRow>> {
+        self.links_tables()?;
+        let mut out = vec![];
+        for chunk in files.chunks(200) {
+            let marks = vec!["?"; chunk.len()].join(", ");
+            let sql = format!(
+                "SELECT src_file, src_block, dst_file, dst_block, dst_row, kind, saved_at FROM link_edges \
+                 WHERE host_id = ? AND (src_key IN ({marks}) OR dst_key IN ({marks})) LIMIT ?"
+            );
+            // Only placeholders are added to the statement; every value is bound.
+            let mut q = sqlx::query(sqlx::AssertSqlSafe(sql)).bind(host_id.to_string());
+            for _ in 0..2 {
+                for f in chunk {
+                    q = q.bind(room_id(host_id, f));
+                }
+            }
+            out.extend(rows(q.bind(MAX_READ).fetch_all(&self.pool).await?)?);
+        }
+        Ok(out)
+    }
+
     /// A host's edges, newest saves first, at most `limit` (the full graph, GRAPH-01).
     pub async fn links_all(&self, host_id: &str, limit: i64) -> anyhow::Result<Vec<LinkRow>> {
         self.links_tables()?;

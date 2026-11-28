@@ -6180,6 +6180,11 @@ Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
 
+## 2026-11-28-links-graph-local-m4 — 2026-11-28-links-graph-local-m4
+
+- **Run:** 2026-11-28, commit `?`; ?, ? vCPU, ? GB RAM, ?, ?; machine `Apple M4, local, other agents' builds running (background load)`; store `?`
+
+
 ## CRASH-SAVE — 2026-11-28-crash-drill-save-mysql84-local
 
 - **Run:** 2026-11-28, commit `c8f0554`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `mysql 8.4.13`
