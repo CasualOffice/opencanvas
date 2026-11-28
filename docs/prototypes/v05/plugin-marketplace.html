@@ -372,7 +372,7 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
  </div>
 
  <section class="rv-sec" id="f1">
-  <h2>1 · Browse <code>MKT-02 · ADR-083</code></h2>
+  <h2>1 · Browse <code>PLUG-05 · ADR-083</code></h2>
   <p>The marketplace opens inside OpenCanvas from the host's settings or the "Get plugins" link in the Add view, Import, Export and Automations menus. It lists the registries the operator connected (here the OpenCanvas Marketplace and Acme's internal registry). Every card says who published it, whether the publisher is verified, and whether any part runs on the server.</p>
   <figure class="fr" id="1a"><figcaption><b>1a</b>Browse as the organisation admin (live: categories, search, filters, Install)<span class="dim">1280 × 800</span></figcaption>
    <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
@@ -395,7 +395,7 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
  </section>
 
  <section class="rv-sec" id="f2">
-  <h2>2 · Plugin details <code>MKT-02 · ADR-083 · ADR-084</code></h2>
+  <h2>2 · Plugin details <code>PLUG-05 · ADR-083 · ADR-084</code></h2>
   <p>One page per plugin: what it adds and where it shows up, its permissions in plain words, the publisher, and on the Security tab the signatures, the sandbox and what is inside the package.</p>
   <figure class="fr" id="2a"><figcaption><b>2a</b>Overview, permissions and publisher<span class="dim">1280 × 800</span></figcaption>
    <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
@@ -482,7 +482,7 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
  </section>
 
  <section class="rv-sec" id="f3">
-  <h2>3 · Install, manage and update <code>MKT-03 · MKT-04</code></h2>
+  <h2>3 · Install, manage and update <code>PLUG-03 · PLUG-05</code></h2>
   <p>Installing is per organisation: one admin turns a plugin on for everyone in Acme Docs. Admins see every installed plugin, its version and its state in one place.</p>
   <div class="rv-row">
    <figure class="fr" id="3a"><figcaption><b>3a</b>Consent before install<span class="dim">720 × 600</span></figcaption>
@@ -495,7 +495,7 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
         <div class="perm"><span class="pi"><svg class="i"><use href="#i-key"/></svg></span><div><b>Keep a GitHub sign-in for each person who connects</b><span>Encrypted on the OpenCanvas server</span></div></div>
         <div class="perm"><span class="pi"><svg class="i"><use href="#i-globe"/></svg></span><div><b>Connect to api.github.com</b><span>On your allowed list</span></div></div>
         <div class="perm"><span class="pi"><svg class="i"><use href="#i-eye"/></svg></span><div><b>Read the fields an automation rule passes to it</b><span>As the rule's owner, when the rule runs</span></div></div>
-        <div class="perm"><span class="pi"><svg class="i"><use href="#i-cpu"/></svg></span><div><b>Run on the OpenCanvas server</b><span>In the sandbox: 2 s, 64 MB per call</span></div></div>
+        <div class="perm"><span class="pi"><svg class="i"><use href="#i-cpu"/></svg></span><div><b>Run on the OpenCanvas server</b><span>In the sandbox: 10 s, 256 MB per call</span></div></div>
         <label class="chk" style="margin-top:.5rem"><input type="checkbox" checked>Update automatically when permissions do not change</label>
        </div>
        <div class="dlg-f"><button class="btn">Cancel</button><button class="btn pri">Install</button></div>
@@ -531,8 +531,8 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
     <p class="note">The toast names the place the plugin appears: Add view (views), Import and Export, the rule editor (actions), the command menu (commands), the / menu (blocks). Plugin entries sit under <em>From plugins</em> with their tile, so they are never mistaken for built-in features.</p>
    </figure>
   </div>
-  <figure class="fr" id="3c"><figcaption><b>3c</b>Installed plugins<span class="dim">1280 × 800</span></figcaption>
-   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:50rem">
+  <figure class="fr" id="3c"><figcaption><b>3c</b>Installed plugins, with the Swimlanes row menu open below<span class="dim">1280 × 960</span></figcaption>
+   <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:60rem">
     <div class="oc">
      <div class="oct"><div class="crumbs"><span class="par">Acme Docs</span><span class="sep">/</span><span class="par">Settings</span><span class="sep">/</span><span class="ctile t-purple"><svg class="i sm"><use href="#i-puzzle"/></svg></span><span class="cname">Plugins</span></div><span class="sp"></span><span class="av" style="background:var(--u3)">NH</span></div>
      <div class="mk"><nav class="mk-nav" data-nav="installed"></nav>
@@ -550,7 +550,8 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
          <tr class="rv"><td><div class="nm"><span class="pt t-gray"><svg class="i"><use href="#i-file-down"/></svg></span><div><b>Sticky export</b><small>Paperplane Tools</small></div></div></td><td>Exporter</td><td class="ver">1.0.6</td><td><span class="pill p-red"><svg class="i sm"><use href="#i-ban"/></svg>Revoked</span></td><td><button class="sw" role="switch" aria-checked="false" aria-label="Sticky export off" disabled></button></td><td><button class="btn sec">Remove</button></td></tr>
         </tbody>
        </table>
-       <div class="pop" style="right:1.75rem;top:17.5rem;width:15rem;position:absolute">
+       <div class="pop" style="right:1.75rem;bottom:1.25rem;width:15rem;position:absolute" aria-label="Swimlanes actions">
+        <h4>Swimlanes</h4>
         <div class="mi"><svg class="i"><use href="#i-eye"/></svg>Details and permissions</div>
         <div class="mi"><svg class="i"><use href="#i-history"/></svg>Roll back to 2.3.0</div>
         <div class="mi"><svg class="i"><use href="#i-pin"/></svg>Pin this version</div>
@@ -586,7 +587,7 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
  </section>
 
  <section class="rv-sec" id="f4">
-  <h2>4 · Admin policy and requests <code>MKT-05 · ADR-083</code></h2>
+  <h2>4 · Admin policy and requests <code>PLUG-05 · PLUG-06 · ADR-083</code></h2>
   <p>The organisation admin is whoever the host marks as plugin admin in the launch token (<code>perms.plugins: "admin"</code>). The operator who runs the server sets the outer limits: which registries exist, whether unsigned packages are possible at all, and whether anything may run on the server. The admin chooses within them.</p>
   <figure class="fr" id="4a"><figcaption><b>4a</b>Policy<span class="dim">1280 × 1392</span></figcaption>
    <div class="fr-vp"><div class="fr-in" data-w="1280" style="width:80rem;height:87rem">
@@ -649,7 +650,7 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
  </section>
 
  <section class="rv-sec" id="f5">
-  <h2>5 · Blocked, unsigned and revoked <code>MKT-06 · ADR-083</code></h2>
+  <h2>5 · Blocked, unsigned and revoked <code>PLUG-02 · ADR-083</code></h2>
   <p>A plugin that cannot be installed still has a details page, with one banner that says why and who can change it. There is never an "install anyway" button.</p>
   <div class="rv-row">
    <figure class="fr" id="5a" style="flex:1 1 30rem"><figcaption><b>5a</b>Unsigned package<span class="dim">640 × 400</span></figcaption>
@@ -685,7 +686,7 @@ textarea.ta{width:100%;min-height:4.5rem;resize:vertical;border:0;border-radius:
  </section>
 
  <section class="rv-sec" id="f6">
-  <h2>6 · Phone <code>MKT-07</code></h2>
+  <h2>6 · Phone <code>PLUG-05</code></h2>
   <p>Below 45em the marketplace is one column: categories become chips, details become one scrolling page, and the request form is a sheet. Installing from a phone works the same way (frame 3a as a sheet).</p>
   <div class="rv-row">
    <figure class="fr phf" style="flex:0 1 auto" id="6a"><figcaption><b>6a</b>Browse</figcaption>
@@ -871,7 +872,7 @@ function mount(el){
  grid.addEventListener("click",e=>{
   const ib=e.target.closest("[data-inst]"),rb=e.target.closest("[data-req]");
   if(ib){const p=P.find(x=>x.id===ib.dataset.inst);
-   const perms=p.perms.map(k=>PERM[k]).concat(p.net?[["i-globe",`Connect to ${p.net}`,"On your allowed list."]]:[]).concat(p.srv?[["i-cpu","Run on the OpenCanvas server","In the sandbox: 2 s and 64 MB per call."]]:[]);
+   const perms=p.perms.map(k=>PERM[k]).concat(p.net?[["i-globe",`Connect to ${p.net}`,"On your allowed list."]]:[]).concat(p.srv?[["i-cpu","Run on the OpenCanvas server","In the sandbox: 10 s and 256 MB per call."]]:[]);
    dialog(`<div class="dlg" role="dialog" aria-modal="true" aria-label="Install ${esc(p.n)}"><div class="dlg-h"><span class="pt t-${p.tone}">${ic(p.ic)}</span><div style="flex:1"><h3>Install ${esc(p.n)} for Acme Docs?</h3><p>${esc(p.pub)} · ${p.pk==="c"?"community publisher, signed":"verified publisher, signed and reviewed"}</p></div><button class="btn ic" data-x aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><div class="hint" style="margin-bottom:.25rem">Everyone in Acme Docs will be able to use it. It will be able to:</div>${perms.map(([i,b,s])=>`<div class="perm"><span class="pi">${ic(i)}</span><div><b>${b}</b><span>${s}</span></div></div>`).join("")}</div><div class="dlg-f"><button class="btn" data-c>Cancel</button><button class="btn pri" data-ok>Install</button></div></div>`,()=>{p.st="installed";render();toast(`${ic("i-circle-check")}<span>${esc(p.n)} is on for Acme Docs. Find it in ${FIND[p.cat]}.</span>`)},ib)}
   if(rb){const p=P.find(x=>x.id===rb.dataset.req);
    dialog(`<div class="dlg" role="dialog" aria-modal="true" aria-label="Request ${esc(p.n)}"><div class="dlg-h"><span class="pt t-${p.tone}">${ic(p.ic)}</span><div style="flex:1"><h3>Request ${esc(p.n)}</h3><p>Goes to the admins of Acme Docs</p></div><button class="btn ic" data-x aria-label="Close">${ic("i-x")}</button></div><div class="dlg-b"><label class="hint" for="rq-${p.id}">Why do you need it? (optional)</label><textarea class="ta" id="rq-${p.id}" style="margin-top:.375rem"></textarea>${p.st==="network"?`<div class="banner amber" style="margin-top:.75rem">${ic("i-globe")}<div>It connects to ${p.net}. An admin has to allow that address too.</div></div>`:""}</div><div class="dlg-f"><button class="btn" data-c>Cancel</button><button class="btn pri" data-ok>Send request</button></div></div>`,()=>{p.st="requested";render();toast(`${ic("i-circle-check")}<span>Request sent. Noor Haddad will see it under Requests.</span>`)},rb)}
