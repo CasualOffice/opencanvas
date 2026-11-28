@@ -247,6 +247,8 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const big = full || dgm !== null;
   const dgmBtn = useRef<HTMLButtonElement>(null);
   const phRef = useRef<HTMLDivElement>(null);
+  /** Where the board sits in the document while it is full screen (in a portal): BRD-34. */
+  const fullPhRef = useRef<HTMLDivElement>(null);
   const [phH, setPhH] = useState(0);
   const [place, setPlace] = useState({ heading: "", title: "" });
   const refocus = useRef(false);
@@ -1294,6 +1296,34 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   const viewCenterRef = useRef(viewCenter);
   viewCenterRef.current = viewCenter;
 
+  /**
+   * D12: how far (board units) to move box `b` so that on screen it is clear of the board's own
+   * controls (top actions, tool bar, zoom pill), by the shortest move that keeps it in view; [0, 0]
+   * when it is clear already or nothing would fit.
+   */
+  const clearOfControls = (b: Box): [number, number] => {
+    const svg = svgRef.current, root = rootRef.current;
+    if (!svg || !root) return [0, 0];
+    const r = svg.getBoundingClientRect(), v = S.current.view, pad = 8;
+    const blocks: Box[] = [...root.querySelectorAll<HTMLElement>(".ocbd-top, .ocbd-tool, .ocbd-zoom")]
+      .map((el) => el.getBoundingClientRect())
+      .filter((q) => q.width > 0 && q.height > 0)
+      .map((q) => [q.left - r.left - pad, q.top - r.top - pad, q.right - r.left + pad, q.bottom - r.top + pad]);
+    const sb: Box = [b[0] * v.z + v.tx, b[1] * v.z + v.ty, b[2] * v.z + v.tx, b[3] * v.z + v.ty];
+    const hits = (q: Box) => blocks.some((o) => q[0] < o[2] && q[2] > o[0] && q[1] < o[3] && q[3] > o[1]);
+    if (!hits(sb)) return [0, 0];
+    const moves: [number, number][] = [];
+    for (const o of blocks) moves.push([o[0] - sb[2], 0], [o[2] - sb[0], 0], [0, o[1] - sb[3]], [0, o[3] - sb[1]]);
+    const one = [...moves];
+    for (const a of one) for (const c of one) if (a[0] && c[1]) moves.push([a[0], c[1]]);
+    moves.sort((p, q) => Math.hypot(p[0], p[1]) - Math.hypot(q[0], q[1]));
+    for (const [dx, dy] of moves) {
+      const q: Box = [sb[0] + dx, sb[1] + dy, sb[2] + dx, sb[3] + dy];
+      if (q[0] >= 0 && q[1] >= 0 && q[2] <= r.width && q[3] <= r.height && !hits(q)) return [dx / v.z, dy / v.z];
+    }
+    return [0, 0];
+  };
+
   /* ---- creating shapes ---- */
   /** `box`: the dragged box (BRD-07); `free`: keyboard placement moves to the nearest free spot (BRD-12). */
   const createAt = (t: Tool, x: number, y: number, o: { box?: Box; free?: boolean } = {}) => {
@@ -1323,6 +1353,12 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
       const [dx, dy] = freeSpot(bbox({ ...s, id: "" }) as Box, others);
       s.x = (s.x ?? 0) + dx;
       s.y = (s.y ?? 0) + dy;
+    }
+    if (!o.box) {
+      // D12: a placed (not dragged) shape never lands under the board's own controls.
+      const [cx, cy] = clearOfControls(bbox({ ...s, id: "" } as Shape) as Box);
+      s.x = Math.round((s.x ?? 0) + cx);
+      s.y = Math.round((s.y ?? 0) + cy);
     }
     um?.stopCapturing();
     const nidv = addShape(doc, boardId, s, origin);
@@ -2306,7 +2342,10 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const m = await loadShell();
     const el = rootRef.current;
     setPhH(el?.offsetHeight ?? 0);
-    setPlace({ heading: m.headingAbove(el), title: m.documentTitle(el) });
+    // BRD-34: full screen, the board is in a portal at the end of the page; its placeholder is
+    // where it sits in the document.
+    const at = (full && fullPhRef.current) || el;
+    setPlace({ heading: m.headingAbove(at), title: m.documentTitle(at) });
     setDg(m);
     setFull(false);
     setActive(true);
@@ -2368,6 +2407,18 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
     const id = requestAnimationFrame(() => fit());
     return () => cancelAnimationFrame(id);
   }, [mode]);
+  // BRD-33: entering or leaving full screen moves the board to or from a portal, which drops the
+  // focus to the page (the focused button is gone). Put it back on the board so its shortcuts,
+  // Undo and Escape keep working without a click.
+  const firstFocus = useRef(true);
+  useLayoutEffect(() => {
+    if (firstFocus.current) {
+      firstFocus.current = false;
+      return;
+    }
+    const a = document.activeElement;
+    if (!dgm && (!a || a === document.body || !a.isConnected)) rootRef.current?.focus({ preventScroll: true });
+  }, [full]);
 
   // Drop selected shapes that disappear (remote delete, undo).
   useEffect(() => {
@@ -3000,7 +3051,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
           ) : null}
           {marquee ? <rect className="ocbd-marquee" x={marquee[0]} y={marquee[1]} width={marquee[2] - marquee[0]} height={marquee[3] - marquee[1]} fill="var(--accent-soft)" fillOpacity={0.5} stroke="var(--accent)" strokeWidth={1 / z} pointerEvents="none" /> : null}
         </g>
-        <Cursors peers={peers} view={view} />
+        <Cursors peers={peers} view={view} width={W} />
       </svg>
       {dgm && Dg && dp.rulers ? <Dg.Rulers view={view} size={size} span={sel.length ? unionBox(selShapes()) : null} /> : null}
       <div className="ocbd-sr" role="status" aria-live="polite">{live}</div>
@@ -3258,7 +3309,7 @@ function Board({ doc, boardId, env, awareness, shapes: raw }: { doc: Y.Doc; boar
   if (full && typeof document !== "undefined") {
     return (
       <DocIconsContext.Provider value={iconsCtx}>
-        <div className="ocbd-ph" style={{ height: compact ? 300 : 440 }}>Open in full screen</div>
+        <div ref={fullPhRef} className="ocbd-ph" style={{ height: compact ? 300 : 440 }}>Open in full screen</div>
         {createPortal(content, document.body)}
         {iconDialogs}
       </DocIconsContext.Provider>

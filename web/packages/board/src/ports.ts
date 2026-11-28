@@ -11,7 +11,7 @@
 // end. The web and Rust renderers draw it at the port itself when the shape stores that port
 // (`portEnd`, DGM-12, shared fixture `board-ports.json`), else at `anchor`.
 import { bbox, type Pt, type Shape } from "./model";
-import { anchorPoint, ANCHORS, type Anchor, type Binding } from "./connectors";
+import { anchorPoint, ANCHORS, turned, type Anchor, type Binding } from "./connectors";
 import { descriptorOf } from "./registry";
 
 export type Side = "top" | "right" | "bottom" | "left";
@@ -77,7 +77,7 @@ export function portPoint(s: Shape, id: string): Pt | null {
   const p = findPort(s, id);
   if (!p) return null;
   const [x0, y0, x1, y1] = bbox(s);
-  return [x0 + (x1 - x0) * (p.x ?? 0.5), y0 + (y1 - y0) * (p.y ?? 0.5)];
+  return turned(s, [x0 + (x1 - x0) * (p.x ?? 0.5), y0 + (y1 - y0) * (p.y ?? 0.5)]);
 }
 
 /** The edge of box `b` nearest to point (x, y) (ties: top, right, bottom, left). */

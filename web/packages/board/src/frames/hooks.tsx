@@ -2,7 +2,7 @@
 // Copyright 2026 CasualOffice
 
 // The board's hooks into frames (BRD-21): rename, Present (lazy), the names layer.
-import { lazy, Suspense, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as Y from "yjs";
 import type { Shape } from "../model";
 import { framesOf } from "./model";
@@ -16,6 +16,15 @@ export function useFrames(o: { doc: Y.Doc; boardId: string; shapes: Shape[]; vie
   const [renaming, setRenaming] = useState<string | null>(null);
   const [presenting, setPresenting] = useState<string | null>(null);
   const target = renaming ? frames.find((f) => f.id === renaming) : undefined;
+  // BRD-33: focus goes back to the board once the presentation is gone (while it is on screen the
+  // board cannot take focus, so doing it in onClose left the focus on the page).
+  const wasPresenting = useRef(false);
+  const onDone = useRef(o.onDone);
+  onDone.current = o.onDone;
+  useEffect(() => {
+    if (presenting === null && wasPresenting.current) onDone.current();
+    wasPresenting.current = presenting !== null;
+  }, [presenting]);
   const nodes: ReactNode[] = [];
   if (target)
     nodes.push(
@@ -42,7 +51,6 @@ export function useFrames(o: { doc: Y.Doc; boardId: string; shapes: Shape[]; vie
           start={presenting || undefined}
           onClose={() => {
             setPresenting(null);
-            o.onDone();
           }}
         />
       </Suspense>,

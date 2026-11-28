@@ -33,22 +33,27 @@ export function isBinding(b: unknown): b is Binding {
 export function anchorPoint(s: Shape, a: Anchor): Pt {
   const [x0, y0, x1, y1] = bbox(s);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  switch (a) {
-    case "top":
-      return [cx, y0];
-    case "bottom":
-      return [cx, y1];
-    case "left":
-      return [x0, cy];
-    case "right":
-      return [x1, cy];
-    default:
-      return [cx, cy];
-  }
+  const p: Pt = a === "top" ? [cx, y0] : a === "bottom" ? [cx, y1] : a === "left" ? [x0, cy] : a === "right" ? [x1, cy] : [cx, cy];
+  return turned(s, p);
+}
+
+/** The shape's rotation in degrees (BRD-22), 0 when it has none. */
+const degOf = (s: Shape) => (typeof s.rot === "number" && Number.isFinite(s.rot) && !s.pts?.length ? s.rot : 0);
+/** Point `p`, given in the shape's own (unturned) frame, turned with the shape about its centre (BRD-35). */
+export function turned(s: Shape, p: Pt, sign = 1): Pt {
+  const deg = degOf(s) * sign;
+  if (!deg) return p;
+  const [x0, y0, x1, y1] = bbox(s);
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const r = (deg * Math.PI) / 180, co = Math.cos(r), si = Math.sin(r);
+  const dx = p[0] - cx, dy = p[1] - cy;
+  return [cx + dx * co - dy * si, cy + dx * si + dy * co];
 }
 
 /** Point where the ray from the shape's centre towards `to` leaves its outline. */
 export function boundaryToward(s: Shape, to: Pt): Pt {
+  // A turned shape: find the point in its own frame, then turn it back (BRD-35).
+  if (degOf(s)) return turned(s, boundaryToward({ ...s, rot: undefined }, turned(s, to, -1)));
   const [x0, y0, x1, y1] = bbox(s);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
   const hw = Math.max(1, (x1 - x0) / 2), hh = Math.max(1, (y1 - y0) / 2);

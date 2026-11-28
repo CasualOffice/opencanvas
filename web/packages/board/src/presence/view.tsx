@@ -21,7 +21,8 @@ const initials = (n: string) =>
     .join("") || "?";
 
 /** Cursors in screen space. A label shows while its cursor moves and fades 4 s after it stops. */
-export function Cursors({ peers, view }: { peers: Peer[]; view: { tx: number; ty: number; z: number } }) {
+/** `width`: the board's width on screen; a label that would run past it sits left of the arrow (BRD-36). */
+export function Cursors({ peers, view, width }: { peers: Peer[]; view: { tx: number; ty: number; z: number }; width?: number }) {
   const moved = useRef(new Map<number, { x: number; y: number; at: number }>());
   const [, tick] = useState(0);
   const now = Date.now();
@@ -44,12 +45,13 @@ export function Cursors({ peers, view }: { peers: Peer[]; view: { tx: number; ty
         const px = p.x * view.z + view.tx, py = p.y * view.z + view.ty;
         const w = Math.min(160, p.name.length * 6.6 + 16);
         const shown = now - (moved.current.get(p.id)?.at ?? now) < LABEL_FADE_MS;
+        const lx = width && px + 12 + w > width ? -4 - w : 12;
         return (
           <g key={p.id} className="ocbd-cursor" transform={`translate(${px.toFixed(1)} ${py.toFixed(1)})`} style={{ transition: "transform 80ms linear" }}>
             <path d="M0 0 L5.5 15 L8 8.5 L14.5 6 Z" fill={p.color} stroke="var(--app)" strokeWidth="1.2" strokeLinejoin="round" />
             <g className="ocbd-clabel" opacity={shown ? 1 : 0} style={{ transition: "opacity 400ms ease" }}>
-              <rect x="12" y="15" width={w} height="20" rx="6" fill={p.color} />
-              <text x="20" y="29" fontSize="11.5" fontWeight="600" fill={inkOn(p.color)}>{short(p.name, 22)}</text>
+              <rect x={lx} y="15" width={w} height="20" rx="6" fill={p.color} />
+              <text x={lx + 8} y="29" fontSize="11.5" fontWeight="600" fill={inkOn(p.color)}>{short(p.name, 22)}</text>
             </g>
           </g>
         );

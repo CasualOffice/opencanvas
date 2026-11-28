@@ -3,7 +3,7 @@
 
 // Quick-connect (decision 10 of docs/prototypes/board-ux-approved): the four + handles of one
 // selected shape. Where the new shape goes and what it copies; pure functions.
-import type { Anchor } from "../connectors";
+import { turned, type Anchor } from "../connectors";
 import { bbox, type Shape, type ShapeType } from "../model";
 import { intersects, type Box } from "../ops";
 
@@ -41,9 +41,13 @@ export function qcSpot(s: Shape, side: Side, others: Box[], gap = 70): [number, 
   return [x, y];
 }
 
-/** The four handle positions, `d` outside the shape's box; the top one sits right of the rotation handle. */
+/**
+ * The four handle positions, `d` outside the shape's box; the top one sits right of the rotation
+ * handle. A turned shape turns them too, so they stay off its sides and its corner handles (BRD-35).
+ */
 export function qcHandles(s: Shape, d: number): Record<Side, [number, number]> {
   const [x0, y0, x1, y1] = bbox(s);
   const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
-  return { n: [cx + 2 * d, y0 - d], e: [x1 + d, cy], s: [cx, y1 + d], w: [x0 - d, cy] };
+  const t = (p: [number, number]) => turned(s, p) as [number, number];
+  return { n: t([cx + 2 * d, y0 - d]), e: t([x1 + d, cy]), s: t([cx, y1 + d]), w: t([x0 - d, cy]) };
 }

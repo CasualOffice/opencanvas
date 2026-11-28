@@ -182,3 +182,40 @@ Prototype for all six and the §3 gaps (approved by the owner 2026-11-28, all 14
   project's accounts.
 - Keep our lead: sticky notes, the embedded board in a document, diagram mode (libraries, ports, routing, rulers,
   properties), and accessible keyboard placement.
+
+## 7. QA pass with a real mouse and keyboard (2026-11-28, after BRD-17..31)
+
+**How this was checked.** `main` at 79efb4a, the production editor build served statically at `#demo`, in Chrome
+(1409 × 802, dark) through the browser tools and in Playwright Chromium (real mouse and keyboard events, 1280 × 900,
+853, 640, 390 and 320 px, Pixel 7 touch). Throwaway probe specs logged what the board stored in its Y.Doc after each
+action; every defect below was then turned into a test that failed before its fix (`e2e/diagram/board-qa.spec.ts`,
+`board-toolbar.spec.ts`, `web/packages/board/src/qa.test.ts`, `qa-ui.test.tsx`). Two people at once: the demo's
+simulated collaborator (cursor, avatar, Follow, Go to cursor); two real browsers need the server stack (`w-two-user-board`).
+
+Severity as in §2. Status: **Fixed** (commit in the tracker row), **Open** (with the reason).
+
+| # | Sev | Defect | Steps → expected vs actual | Status |
+|---|---|---|---|---|
+| Q1 (BRD-32) | P0 | **Tool bar parked in the bottom-left corner** (owner). | Any board. Expected (owner): centred at the bottom, zoom pill bottom right. Actual: left-aligned (option A of the toolbar prototype). | Fixed: centred grid; the pill's width reserved on both sides. |
+| Q2 (BRD-33) | P1 | **Entering or leaving full screen, or leaving Present, drops keyboard focus to the page.** | Click Full screen, press R. Expected: Rectangle tool. Actual: nothing; also Undo, Escape and every shortcut do nothing until the canvas is clicked. Same after Exit full screen, and after Escape out of Present (Undo then did nothing: the frame just drawn stayed). Cause: the board moves to or from a portal and the focused button is unmounted; Present gave focus back while it was still on screen. | Fixed |
+| Q3 (BRD-34) | P2 | **Diagram opened from full screen is named after the wrong heading.** | Full screen, Diagram. Expected title: "How a session flows" (the heading above the board). Actual: "OpenCanvas owns", the last heading of the page: the heading is looked up from the board's portal at the end of `<body>`. | Fixed |
+| Q4 (BRD-35) | P2 | **Rotated shapes: connectors and quick-connect ignore the rotation.** | Rotate a sticky with connectors. Expected: ends on the turned outline; the four + handles off the turned sides. Actual: anchors, ports and centre-bound ends stay on the unturned box (ends float off or sit inside the shape); the + handles stay axis-aligned, one on top of a corner resize handle (4 px apart at 90°), so that corner cannot be dragged. | Fixed |
+| Q5 (D12) | P3 | **New shapes can sit under the board's controls.** | Sticky tool, click just under the top actions or by the zoom pill; Rectangle just above the tool bar. Expected: the shape lands clear of the controls. Actual: under them. | Fixed: a placed (not dragged) shape moves by the shortest distance that clears them. |
+| Q6 (BRD-36) | P3 | **A collaborator's name label runs off the board's right edge.** | Phone (390 px), a peer's cursor near the right edge: "Ravi Me…" cut by the board's edge. Expected: the label flips to the left of the arrow. | Fixed |
+| Q7 | P2 | **Auto-layout "Down" on the demo board does not lay out downwards.** | Diagram → Auto-layout → Down, Normal, whole diagram, keep containers → Preview → Apply. Expected: frame, then Room, then Autosave in layers top to bottom. Actual: the frame stays top left, Room and Autosave go to a column on the right, the caption lands on a connector, connectors become long diagonals. The preview's new positions are partly under the properties panel and the preview bar covers the tool bar and zoom pill. | Open: layout algorithm work in `diagram/layout/compute.ts` (a cycle back into a container); the preview needs a "fit the result" step. Next in this pass. |
+| Q8 | P3 | **Shift+wheel pans vertically on Windows and Linux.** | Mouse wheel with Shift (Playwright, no trackpad). Expected: horizontal pan (browsers on macOS already turn Shift+wheel into a horizontal delta). Actual: vertical pan. | Open (small; next in this pass). |
+| Q9 | — | Test harness: the e2e static server (`e2e/diagram/serve.ts`) serves `.mjs` and `.wasm` as `application/octet-stream`, so one module fails to load in every demo spec ("Failed to load module script"). | Console of any `e2e/diagram` spec. | Open (harness only; next in this pass). |
+
+Checked and fine in this pass: every tool by drag (rect, ellipse, diamond, sticky, text, frame, connector binding to a
+shape, pen with smoothing points); tool lock (Q, three placements, Escape releases); quick-connect click (same kind,
+bound both ends, typing at once); text and sticky editing, Escape commits, undo restores the old text; copy, paste
+(at the pointer), duplicate, delete, select all; paste of 10 shapes into another tab's board; undo and redo of 8 actions
+back to the start and forward again; rotation handle (15° steps) and undo; multi-select resize; marquee (fully inside);
+frames (F, membership of 3 shapes, Frames menu, Present, arrows through frames, Escape); export dialog (selection, PNG/SVG,
+light/dark/none, 1-3×); context menu (shape and canvas, Arrange submenu); Ctrl/⌘+wheel zoom, wheel pan, Space-drag and
+middle-drag pan, Shift+1 fit; Follow and Go to cursor with the simulated peer; phone: the board opens behind "Tap to
+open board".
+
+Not covered in this pass: import (draw.io, Excalidraw) and two real browsers need the canvas server; frame time at
+2,000 shapes (`e2e/perf/board-frames.perf.ts` with `PERF_SIZES=2000`) was not run because the disk was under the 10 GB
+floor set for this pass.
