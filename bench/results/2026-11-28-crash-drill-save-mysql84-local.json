@@ -1,10 +1,17 @@
 {
-  "scenario": "crash-drill save (RLB-01c), full size: 200 rooms x 2, 45 s, kill -9 at 25 s, host 1.5-2.5 s per save",
+  "scenario": "CRASH-SAVE",
   "date": "2026-11-28",
   "commit": "c8f0554",
   "machine": "local",
-  "hardware": "Apple M4 laptop",
-  "store": "MySQL 8.4.13 (Docker, --max-connections=1000)",
+  "hardware": {
+    "cpu": "Apple M4",
+    "kernel": "Darwin 25.3.0",
+    "os": "macOS 26.3",
+    "ramGb": 16,
+    "storage": "Internal SSD (Apple Fabric)",
+    "vcpu": 10
+  },
+  "store": "mysql 8.4.13",
   "durability": "wal",
   "result": "PASS",
   "crash": {
@@ -73,5 +80,6 @@
   "servers": [
     "http://127.0.0.1:9381"
   ],
-  "spread": false
+  "spread": false,
+  "notes": "crash-drill save (RLB-01c), full size: 200 rooms x 2, 45 s, kill -9 at 25 s, host 1.5-2.5 s per save; MySQL in Docker with --max-connections=1000"
 }

@@ -230,7 +230,7 @@ documents (ADR-001). Support is best effort, with no SLA.
 - Spreadsheet: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
 - Charts: no browser test yet for database charts and the live database ⇄ spreadsheet view; the chart is placed after the sheet, not floating over it.
 - Timeline: Workload reassigns through a select, not by dragging; no Months grouping on phones; Timeline is not in the insert menu.
-- The slow-host save drill ran on SQLite; the MySQL run is pending. DEP-01 still needs the SBOM and update policy.
+- The slow-host save drill now passes on SQLite and MySQL 8.4; SBOMs and the update policy (DEP-01) are in place since 2026-11-28 (for v0.4.1).
 - Benchmarks marked `local` ran on a developer laptop, not the reference machine.
 
 ## 4. Release checklist
@@ -6077,6 +6077,11 @@ Source files: bench/results/*.json
 
 Every number below comes from a result file in `bench/results/`, produced by `scripts/bench/run` (docs/36 §3). Each result names the machine it ran on, the hardware, the store and the load mix. **Results marked `local` ran on a developer laptop in short form, not on the reference machine (4 vCPU, 8 GB), and are not the published capacity.** The capacity page has the sizing guidance.
 
+## CRASH-SAVE — 2026-11-28-crash-drill-save-mysql84-local
+
+- **Run:** 2026-11-28, commit `c8f0554`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `mysql 8.4.13`
+
+
 ## BROWSER — 2026-11-26-browser-local-partial
 
 - **Run:** 2026-11-26, commit `b4ba7db`; Apple M4, 10 vCPU, 16 GB RAM, macOS 26.3, Internal SSD (Apple Fabric); machine `local`; store `sqlite`
@@ -6279,17 +6284,6 @@ Verdict: **fail**.
 
 100,000 rows × 30 fields in one database, scrolled for 10 s per scenario with a cell edit every 500 ms. Frame times in ms; the gate is p95 at or under 16.7 ms (60 fps) with no long tasks.
 
-### local-m4-incremental — db100k-local-m4-incremental
-
-- **Run:** 2026-11-26; Apple M4, 10 cores, 16 GB RAM, Darwin 25.3.0; Chromium 159.0.8154.6, 1280x900, headless
-- **Load mix:** one tab, no peers, 100000 rows × 30 fields written in one local transaction; scripted scroll 10 s per scenario with a local cell edit every 500 ms
-
-| Scenario | p50 | p95 | p99 | Long tasks |
-|---|---|---|---|---|
-| table | 16.7 | 16.7 | 16.8 | 0 |
-| tableSide | 16.7 | 16.7 | 16.8 | 0 |
-| board | 16.7 | 16.7 | 16.8 | 0 |
-
 ### local-m4 — db100k-local-m4
 
 - **Run:** 2026-11-26; Apple M4, 10 cores, 16 GB RAM, Darwin 25.3.0; Chromium 159.0.8154.6, 1280x900, headless
@@ -6300,6 +6294,17 @@ Verdict: **fail**.
 | table | 16.7 | 483.3 | 500 | 19 |
 | tableSide | 16.7 | 250 | 300.1 | 19 |
 | board | 16.7 | 16.8 | 200.1 | 19 |
+
+### local-m4-incremental — db100k-local-m4-incremental
+
+- **Run:** 2026-11-26; Apple M4, 10 cores, 16 GB RAM, Darwin 25.3.0; Chromium 159.0.8154.6, 1280x900, headless
+- **Load mix:** one tab, no peers, 100000 rows × 30 fields written in one local transaction; scripted scroll 10 s per scenario with a local cell edit every 500 ms
+
+| Scenario | p50 | p95 | p99 | Long tasks |
+|---|---|---|---|---|
+| table | 16.7 | 16.7 | 16.8 | 0 |
+| tableSide | 16.7 | 16.7 | 16.8 | 0 |
+| board | 16.7 | 16.7 | 16.8 | 0 |
 
 
 # AI and MCP

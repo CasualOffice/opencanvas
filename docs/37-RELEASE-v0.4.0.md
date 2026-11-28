@@ -40,7 +40,7 @@ documents (ADR-001). Support is best effort, with no SLA.
 - Spreadsheet: cell comments, the "changed since" undo message, merge and wrap in the phone layout, merges across frozen panes.
 - Charts: no browser test yet for database charts and the live database ⇄ spreadsheet view; the chart is placed after the sheet, not floating over it.
 - Timeline: Workload reassigns through a select, not by dragging; no Months grouping on phones; Timeline is not in the insert menu.
-- The slow-host save drill ran on SQLite; the MySQL run is pending. DEP-01 still needs the SBOM and update policy.
+- The slow-host save drill now passes on SQLite and MySQL 8.4; SBOMs and the update policy (DEP-01) are in place since 2026-11-28 (for v0.4.1).
 - Benchmarks marked `local` ran on a developer laptop, not the reference machine.
 
 ## 4. Release checklist
