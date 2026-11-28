@@ -131,6 +131,8 @@ ${ICON_REM}
 .ocbd-chev{margin-left:auto;color:var(--fg-3)}
 .ocbd-mh{font-size:.6875rem;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.05em;padding:.4rem .625rem .25rem}
 .ocbd-scrim{z-index:7}
+/* A menu opened over its own scrim (board options, avatars) sits above it, or the scrim takes its clicks. */
+.ocbd-scrim + .ocbd-menu{z-index:8}
 .ocbd-scrim.dim{background:rgba(10,10,14,.32)}
 .ocbd-ctx.sheet{left:0;right:0;top:auto;bottom:0;max-width:none;min-width:0;border-radius:1.25rem 1.25rem 0 0;padding:.5rem .75rem calc(1rem + env(safe-area-inset-bottom,0px));max-height:85%;animation:ocbd-sheet .2s var(--ease)}
 .ocbd-ctx.sheet .ocbd-mi{min-height:2.75rem;font-size:.9375rem}
