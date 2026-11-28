@@ -888,6 +888,11 @@ export function WorkloadView({ ctx }: { ctx: TlCtx }) {
           })}
         </tbody>
       </table>
+      {!rowsOrder.length ? (
+        <p className="ocdb-tl-none" role="status">
+          <b>Nothing to plan yet.</b> Give tasks a {p.start ? "date" : "start date"} and a person to see each person's weeks here.
+        </p>
+      ) : null}
       {open && cellOf ? (
         <Pop anchor={open.anchor} compact={ctx.compact} title={`Week of ${short(weeks[open.w])}`} onClose={() => setOpen(null)}>
           <ul className="ocdb-wl-list">

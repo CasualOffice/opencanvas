@@ -29,11 +29,27 @@ const CALLOUT: Record<string, { tone: string; icon: string }> = {
 /** Diagram types without a board preset start blank (the shapes panel has every library). */
 const DIAGRAM_PRESET: Record<string, "flowchart" | "mindmap" | "blank"> = { flowchart: "flowchart", mindmap: "mindmap" };
 
-function later(editor: Editor, range: Range | null, make: () => Promise<JSONContent[]>) {
+/**
+ * Inserts a block whose package loads first. The position is taken before the await and mapped
+ * through every transaction meanwhile (a collaborator's edit, or the block's own Y.Doc write
+ * syncing back), so the block lands where the "/" was, not wherever the selection ended up.
+ */
+export function later(editor: Editor, range: Range | null, make: () => Promise<JSONContent[]>): Promise<void> {
   if (range) editor.chain().focus().deleteRange(range).run();
-  make()
-    .then((node) => editor.chain().focus().insertContent(node).run())
-    .catch(() => bridge.env.toast("That block couldn't load. Check your connection and try again."));
+  let pos = editor.state.selection.from;
+  const track = ({ transaction }: { transaction: { mapping: { map(p: number, assoc?: number): number } } }) => {
+    pos = transaction.mapping.map(pos, -1);
+  };
+  editor.on("transaction", track);
+  return make()
+    .then((node) => {
+      editor.off("transaction", track);
+      editor.chain().focus().insertContentAt(Math.min(pos, editor.state.doc.content.size), node).run();
+    })
+    .catch(() => {
+      editor.off("transaction", track);
+      bridge.env.toast("That block couldn't load. Check your connection and try again.");
+    });
 }
 
 /** Inserts a row's block with its shown variant where the "/" was (or at the selection). */
