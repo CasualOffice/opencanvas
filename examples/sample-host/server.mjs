@@ -59,7 +59,13 @@ const metaPath = path.join(DATA, "meta.json");
 let meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, "utf8")) : { files: {} };
 meta.index ??= {}; // fileId -> search.json of its last save (SRCH-05)
 meta.mentions ??= {}; // fileId -> newest first: {key, by, mentioned, blockId, threadId, excerpt, at}
-const saveMeta = () => fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+// Written to a temp file and renamed over the old one, so a reader in another process (the e2e
+// helpers read meta.json and the stored files) never sees a truncated, half-written file (RLB-04).
+const writeAtomic = (p, body) => {
+  fs.writeFileSync(p + ".tmp", body);
+  fs.renameSync(p + ".tmp", p);
+};
+const saveMeta = () => writeAtomic(metaPath, JSON.stringify(meta, null, 2));
 if (!Object.keys(meta.files).length) {
   meta.files.doc_welcome = { id: "doc_welcome", name: "Sprint 42 planning", version: 0, updatedAt: null,
     acl: { u_priya: "edit", u_asha: "edit", u_asha2: "comment", u_ravi: "comment", u_sam: "view" } };
@@ -82,7 +88,7 @@ function keepVersion(f, body, h) {
     ...(name ? { name: name.slice(0, 120) } : {}), ...(restoredFrom ? { restoredFrom } : {}),
     checkpoint: h["x-opencanvas-checkpoint"] === "1" };
   fs.mkdirSync(path.dirname(versionPath(f.id, v.version)), { recursive: true });
-  fs.writeFileSync(versionPath(f.id, v.version), body);
+  writeAtomic(versionPath(f.id, v.version), body);
   f.versions = [...(f.versions || []), v];
   const loose = f.versions.filter(x => x.kind === "auto" && !x.checkpoint);
   for (const x of loose.slice(0, Math.max(0, loose.length - 20))) {
@@ -392,7 +398,7 @@ async function callbacks(req, res, url) {
       if (!auth.service && f.acl[auth.userId] !== "edit" && f.acl[auth.userId] !== "comment") return send(res, 403, { error: "read only" });
       const ifMatch = (req.headers["if-match"] || "").replace(/"/g, "");
       if (ifMatch && ifMatch !== String(f.version)) return send(res, 409, { version: String(f.version) });
-      fs.writeFileSync(filePath(fileId), body);
+      writeAtomic(filePath(fileId), body);
       f.version += 1; f.updatedAt = new Date().toISOString();
       f.authors = JSON.parse(req.headers["x-opencanvas-authors"] || "[]");
       keepVersion(f, body, req.headers);
@@ -406,7 +412,7 @@ async function callbacks(req, res, url) {
       if (f.acl[auth.userId] !== "edit" && f.acl[auth.userId] !== "comment") return send(res, 403, { error: "read only" });
       const id = "doc_" + crypto.randomBytes(4).toString("hex");
       meta.files[id] = { id, name: `${f.name} (copy)`, version: 1, updatedAt: new Date().toISOString(), acl: { ...f.acl } };
-      fs.writeFileSync(filePath(id), body);
+      writeAtomic(filePath(id), body);
       saveMeta();
       console.log(`copied ${fileId} -> ${id} after a conflict (${body.length} bytes)`);
       return send(res, 201, { fileId: id, url: `${SELF}/files/${id}` });

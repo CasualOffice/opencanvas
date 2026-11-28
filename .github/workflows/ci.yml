@@ -203,6 +203,8 @@ jobs:
         working-directory: e2e
       - run: npx playwright install --with-deps chromium webkit
         working-directory: e2e
+      # The sample host's own test: its files never read torn while it saves (RLB-04).
+      - run: node --test examples/sample-host/test/meta.test.mjs
       - run: npm run e2e
         working-directory: e2e
       - name: new or changed specs, five times (RLB-04)

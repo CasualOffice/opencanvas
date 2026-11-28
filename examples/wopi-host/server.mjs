@@ -49,7 +49,12 @@ const USERS = {
 // ---------- file metadata ----------
 const metaPath = path.join(DATA, "meta.json");
 let meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, "utf8")) : { files: {} };
-const saveMeta = () => fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+// Written to a temp file and renamed over meta.json, so a reader in another process (the e2e
+// helpers) never sees a truncated, half-written file (RLB-04).
+const saveMeta = () => {
+  fs.writeFileSync(metaPath + ".tmp", JSON.stringify(meta, null, 2));
+  fs.renameSync(metaPath + ".tmp", metaPath);
+};
 const nowStamp = prev => {
   // ISO 8601 with ms; strictly increasing so every save gets a new LastModifiedTime.
   let t = Date.now();
